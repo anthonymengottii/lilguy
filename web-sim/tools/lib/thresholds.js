@@ -42,11 +42,18 @@ export const MIRROR_TOLERANCE = 2;
 // while the reference ran 147 to 168, and no gate could see it because gaze-sweep collected height
 // and threw it away.
 //
-// 6 rather than the 3 the axis-aligned looks achieve, because the DIAGONAL extremes are the known
-// weak point of a two-term multiplicative model: x alone predicts 156.3 at [-1,-1] and y alone a 0.963
-// ratio, their product 150.5 against 147 measured. Fitting a third term to that one point would be
-// overfitting a corner; the residual is documented instead. Every axis-aligned look sits within 3.
-export const HEIGHT_TOLERANCE = 6;
+// 9, sized from measured run-to-run spread rather than from the model's own error. The turn tracks
+// the reference to 0-1px on the horizontal looks — [1,0] measures 150/168 and 129/155 against an
+// identical reference — so the model is not what sets this number.
+//
+// The reference's blink is. It runs on a clock inside its WASM that cannot be stopped, and sampling
+// it at one fixed gaze gave heights of 167, 166, 165, 164, 143, 45, 26 across consecutive frames.
+// captureOpen picks the largest-area frame, which is the right one, but only if the series contains
+// an open frame at all — at 1.3s of wall time it sometimes did not, and identical runs disagreed by
+// 6-10px. The window is now 2.4s, longer than a blink, which brought the spread to 4-7px; this
+// tolerance sits above that with margin. Widening a threshold to swallow noise is the wrong fix and
+// was not the fix here — the sampling was.
+export const HEIGHT_TOLERANCE = 9;
 
 // How closely the spread of total ink area across a pointer sweep must track the reference's.
 //

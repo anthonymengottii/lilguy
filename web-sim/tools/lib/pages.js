@@ -94,7 +94,15 @@ export async function openReference(context, { state = '1b', origin = REF_ORIGIN
     // So sample repeatedly and keep the frame with the MOST ink. The open eye is strictly larger
     // than any point in a blink, so max-area is the rest pose by construction. Sampling is in
     // milliseconds rather than frame counts, per the rule in measure.js.
-    async captureOpen({ samples = 14, everyMs = 90 } = {}) {
+    // The window has to outlast a blink, not merely contain a few frames. The reference blinks every
+    // 2.5-5s and a blink runs ~800ms, so a short series can land entirely inside one: sampled at the
+    // [1,-1] corner, 25 consecutive frames ran 167, 166, 165, 164, 143, 45, 26 — a height range of
+    // 26..167 for one fixed gaze. Max-area still picks the open frame correctly, but only if an open
+    // frame is in the series at all, and when it was not the harness reported per-eye height errors
+    // that swung 6-10px between identical runs.
+    //
+    // 14 x 90ms was 1.3s of wall time. 2.4s clears the longest blink with margin.
+    async captureOpen({ samples = 24, everyMs = 100 } = {}) {
       let best = null;
       for (let i = 0; i < samples; i++) {
         // shot.area is computed in-page, so picking the open frame costs no mask unpacking.

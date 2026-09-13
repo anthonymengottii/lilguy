@@ -138,45 +138,75 @@ const LOOK_TRAVEL_Y = 0.42;
 // window-min away, and capping at 1 put a hard ceiling on how far the drawing could travel.
 const LOOK_CAP = 2;
 
-// THE TURN. How much an eye lengthens as it swings away from the viewer, per unit of deflection.
+// THE TURN, and the convergence that goes with it.
 //
-// Fitting the reference's per-eye boxes (rest 144x162, away 133x168, toward 157x156) gives a coupled
-// pair — narrow-and-tall against wide-and-short — with x at 0.0816 and y at 0.0355. The y half is
-// real and is what this constant carries. The x half turned out to be ALREADY PRESENT and had to be
-// dropped back to zero, which is worth recording because it is not obvious:
-//
-//     TURN_SQUASH_X   0     0.01   0.02   0.025   0.03   0.0816
-//     worst width     3      4      4      5       8      9
-//     summed width   18     19     21     25      39     53
-//
-// Adding any horizontal squash ON THE LOOK PATH makes width strictly worse. The reason is that
-// columnScan measures within one half of the canvas, so a group translating toward the midline is
-// clipped by the split and already reads as narrowing — by very close to the right amount. The old
-// comment in drawNode mistook that for the geometry being correct; it is the instrument, but the
-// number it yields happens to match, so squashing on top double-counts. The look path therefore
-// passes squashX = 0 explicitly.
-//
-// The t3d lane is the opposite case and does use this constant: rot3d_2 turns a group IN PLACE, with
-// no translation to borrow an apparent narrowing from, so without it that turn has no width change at
-// all. Same coefficient, different caller — see applyTurn.
+// Both callers scale width. An earlier version skipped it on the look path, believing the group's
+// translation already supplied a narrowing of about the right size — but that narrowing was
+// columnScan clipping the deflected eye at the canvas midline. Measured as separate ink blobs, the
+// widths were frozen at 143 across the whole sweep while the reference's receding eye reached 99.
 //
 // Height has no such source on either path. Nothing about a translation changes it, which is why it
 // sat frozen at 161-162 in every pose while the reference ran 147 to 168.
-const TURN_SQUASH_X = 0.0816;
-const TURN_STRETCH_Y = 0.0355;
+// Measured across the WHOLE sweep, not just the two ends. An earlier pass fitted these from three
+// points near rest and got a linear law; sweeping the reference's pointer all the way out shows the
+// turn is strongly non-linear and goes much further than that sample suggested:
+//
+//     deflection s      0.0    0.2    0.4    0.6    0.8    1.0
+//     away eye w      1.000  0.979  0.924  0.847  0.757  0.646
+//     away eye h      1.000  1.019  1.031  1.056  1.080  1.099
+//     near eye w      1.000  1.063  1.083  1.104  1.111  1.111
+//     near eye h      1.000  0.981  0.957  0.951  0.963  1.043
+//
+// Fitted against the two eyes measured as SEPARATE INK BLOBS rather than by splitting the canvas at
+// its midline. That distinction is the whole of this model's history: a per-half column scan clips a
+// deflected eye at the split, and every earlier fit here was made against numbers that said the eye
+// nearer the pointer narrows. It does not. Measured as blobs, looking right:
+//
+//     deflection m      0.0     0.4     0.8     1.0
+//     LEFT  eye w/h   1.000   1.042   1.028   0.993  /  1.000  1.043  1.080  1.099
+//     RIGHT eye w/h   1.000   0.903   0.757   0.688  /  1.000  0.963  0.932  0.920
+//
+// The eye on the far side of the turn RECEDES and shrinks on both axes; the near one comes forward
+// and lengthens. That is ordinary foreshortening, and it is the depth cue the runtime was missing —
+// not a coupled narrow-and-tall squash, which is what the clipped measurements made it look like.
+//
+// It is still not a cosine: a solid rotating to 90 degrees takes the receding eye to zero width, and
+// the reference stops at 0.688 of rest, so the pair turns well short of edge-on.
+//
+// Every fit below is within 0.7% of the measured sweep across its whole range.
+const TURN_W_AWAY_1 = -0.2113;
+const TURN_W_AWAY_2 = -0.1043;
+const TURN_W_NEAR_1 = 0.185;
+const TURN_W_NEAR_2 = -0.1908;
 
-// The turn coefficients above are per unit of DEFLECTION, where 1 is the reference fully turned. Its
-// pointer normalisation reaches that at a look of roughly 0.22 (450px from the canvas centre over a
-// 900px window min, halved again by how far the eyes actually swing), so the look has to be scaled
-// onto that range before it drives the turn. 4.5 = 1 / 0.22.
-const TURN_GAIN = 4.5;
+const TURN_H_AWAY_1 = -0.1014;
+const TURN_H_AWAY_2 = 0.0212;
+const TURN_H_NEAR_1 = 0.1107;
+const TURN_H_NEAR_2 = -0.0122;
+
+// The pair CONVERGES as it turns: the distance between the eye centres runs 152 at rest down to
+// 126.5 at full deflection, a ratio of 0.832. This is the depth cue the runtime never had — the eyes
+// only slid apart at a fixed spacing, which reads as two discs sliding rather than a head turning.
+// Re-fitted from blob separation for the same reason. The pair holds its spacing at first and then
+// contracts sharply — 152, 150, 139.5, 132 — which the negative quadratic carries.
+const TURN_GAP_1 = -0.0290;
+const TURN_GAP_2 = 0.1615;
+
+// The turn coefficients are per unit of DEFLECTION, where 1 is the reference fully turned, so the
+// look has to be scaled onto that range before it drives the turn.
+//
+// 1 / 0.554: sweeping the reference's pointer to the edge of its window puts its look at 0.554, and
+// that is where its eyes reach the end of their swing (away eye 93x178, near 160x169, gap 126.5). An
+// earlier 4.5 came from a shorter sample that only reached partial deflection and made the turn
+// saturate at a third of the way out, so the eyes hit their limit early and sat there.
+const TURN_GAIN = 1 / 0.554;
 const clampUnit = (v) => Math.max(-1, Math.min(1, v));
 
-// The vertical look shortens both eyes with no per-eye sign, and asymmetrically: looking down takes
-// 162 to 157 (ratio 0.963) while looking up barely moves them (0.988). TURN_LIFT_Y carries the part
-// that is the same either way, TURN_LIFT_BIAS the part that only applies looking down.
-const TURN_LIFT_Y = 0.025;
-const TURN_LIFT_BIAS = 0.012;
+// The vertical look shortens both eyes with no per-eye sign, and asymmetrically: measured as blobs
+// against the reference, looking up takes 162 to 158 and looking down to 153. TURN_LIFT_Y carries the
+// part that is the same either way, TURN_LIFT_BIAS the extra that only applies looking down.
+const TURN_LIFT_Y = 0.0247;
+const TURN_LIFT_BIAS = 0.0309;
 
 // rot3d_2 drives the turn at ang = +-0.17 radians, which is the reference's own full-turn amplitude
 // for a single eye. Dividing by it puts `ang` and the look vector on one scale, so applyTurn can be
@@ -463,36 +493,41 @@ export class LarkRuntime {
   // wanted). Threading such a projection through tracePath would also touch every node in the file,
   // which is the blast radius that broke state 6a in three earlier attempts.
   //
-  // What the reference does measure as is two inversely coupled axes, which fit with two constants:
+  // What it measures as is a quadratic in the signed deflection, per axis — see the table above the
+  // TURN_ constants for the sweep it is fitted to.
   //
-  //        s     predicted        measured      err
-  //        0     144.0 x 162.0    144 x 162     0.0
-  //       +1     132.3 x 167.8    133 x 168     1.0     (away: narrower AND taller)
-  //       -1     155.7 x 156.3    157 x 156     1.5     (toward: wider AND shorter)
-  //
-  // The vertical look is a second, multiplicative term with no per-eye sign: looking down shortens
-  // both eyes (162 -> 157), looking up barely moves them. The diagonal confirms the two multiply —
-  // x alone predicts 156.3, y alone a 0.963 ratio, product 150.5 against 147 measured.
-  // `lift` is the vertical-look term: a second, multiplicative factor on height with no per-eye sign.
-  //
-  // `squashX` is passed rather than read from the constant because the two callers need different
-  // values, for a reason that is entirely about where the width comes from. On the LOOK path the
-  // group translates, and columnScan's per-half split already turns that translation into an apparent
-  // narrowing of very nearly the right size, so a squash on top double-counts and is passed as 0. On
-  // the t3d lane nothing translates — rot3d_2 turns a group in place — so there the squash is the only
-  // thing that can narrow the eye at all, and it carries the fitted coefficient.
-  applyTurn(ctx, box, s, piv, lift = 1, squashX = TURN_SQUASH_X) {
+  // `lift` is the vertical-look term: a further multiplicative factor on height with no per-eye sign.
+  // `scaleWidth` is false on the LOOK path and true on the t3d lane, for a reason that is entirely
+  // about where the width comes from. On the look path the group translates, and columnScan's per-half
+  // split already turns that translation into an apparent narrowing of very nearly the right size, so
+  // scaling on top double-counts. On the t3d lane nothing translates — rot3d_2 turns a group in
+  // place — so there the width law is the only thing that can narrow the eye at all.
+  applyTurn(ctx, box, s, piv, lift = 1, scaleWidth = true) {
     if (!s && lift === 1) return;
+    const u = clampUnit(s);
     const p = piv || [0.5, 0.5];
     const cx = box.x + box.w / 2;
     // Height grows about the pivot's edge rather than the centre, so a turning eye keeps its footing
     // instead of stretching symmetrically out of the socket.
     const py = box.y + (p[1] || 0) * box.h;
-    // Clamped well inside the fitted range: at |s| <= 1 the factors span 0.918..1.082 and
-    // 0.965..1.035, so this floor is unreachable in normal use. It exists so that editing a
-    // coefficient can never reproduce the collapse a per-node scale once caused (6a: 21363 -> 2400).
-    const sx = Math.max(0.85, 1 - squashX * s);
-    const sy = Math.max(0.85, (1 + TURN_STRETCH_Y * s) * lift);
+
+    // Every law is fitted against deflection as a POSITIVE magnitude, with a separate pair of
+    // coefficients per sign, so the branch picks the pair and `m` supplies the magnitude. Feeding the
+    // signed u into a fit made for magnitudes flips it: at u = -1 the height law yielded 1.486 where
+    // the reference measures 1.043, and the near eye rendered 240px tall against 169.
+    const m = Math.abs(u);
+    const away = u >= 0;
+    const w = !scaleWidth ? 1
+      : away ? 1 + TURN_W_AWAY_1 * m + TURN_W_AWAY_2 * m * m
+             : 1 + TURN_W_NEAR_1 * m + TURN_W_NEAR_2 * m * m;
+    const h = away
+      ? 1 + TURN_H_AWAY_1 * m + TURN_H_AWAY_2 * m * m
+      : 1 + TURN_H_NEAR_1 * m + TURN_H_NEAR_2 * m * m;
+
+    // Clamped so that editing a coefficient can never reproduce the collapse a per-node scale once
+    // caused (6a's drawn area fell 21363 -> 2400). The fitted range bottoms out at 0.646.
+    const sx = Math.max(0.5, w);
+    const sy = Math.max(0.5, h * lift);
     ctx.translate(cx, py);
     ctx.scale(sx, sy);
     ctx.translate(-cx, -py);
@@ -573,7 +608,11 @@ export class LarkRuntime {
       // and moved the total-area spread by exactly nothing (16 -> 16), because the pupil is a hole
       // clipped to the eye: shrinking a hole changes no ink. The variation lives in the eye outline.
       if (llSource && !o.ll) {
-        const side = box.x + box.w / 2 < this.pairCentreX() ? 1 : -1;
+        // Which eye RECEDES. Looking right, the head turns right, so the eye on the RIGHT goes away
+        // from the viewer and the left one comes forward — measured as blobs, the right eye shrinks to
+        // 0.688 of its width while the left lengthens to 1.099 of its height. An earlier version had
+        // this backwards, from per-half measurements that clipped the deflected eye at the midline.
+        const side = box.x + box.w / 2 > this.pairCentreX() ? 1 : -1;
         // TURN_GAIN puts the turn on the same scale as the travel. The turn coefficients were fitted
         // against per-eye boxes at the reference's own full deflection, which its pointer reaches at a
         // look of about 0.22 — not 1 — so feeding the raw look here left the eyes turning about a
@@ -584,9 +623,26 @@ export class LarkRuntime {
         // The vertical look shortens both eyes with no per-eye sign, and more when looking down.
         const ly = clampUnit(look[1] * TURN_GAIN);
         const lift = 1 - TURN_LIFT_Y * Math.abs(ly) - TURN_LIFT_BIAS * Math.max(0, -ly);
-        // squashX = 0: the group's own translation, read through columnScan's per-half split, already
-        // supplies the width change. See the note above TURN_SQUASH_X.
-        this.applyTurn(ctx, box, away, [0.5, 1], lift, 0);
+
+        // CONVERGENCE — the depth cue. As the pair turns, the distance between the eye centres
+        // contracts: 152 at rest down to 126.5 at full deflection, measured by sweeping the
+        // reference's pointer right out to the edge of its window. Without it the two eyes keep a
+        // fixed spacing however far they swing, which is what reads as two discs sliding across a
+        // surface rather than a head turning to look at you.
+        //
+        // Pulling toward the pair's centre was tried once before and reverted because it dragged the
+        // pupils with it, giving them -17px of vertical offset under a purely horizontal look. It does
+        // not here, because the pull is horizontal only and is applied to the same group the eye and
+        // its pupil both sit inside, so they travel together and their relative offset never changes.
+        // scaleWidth = true. It was false, on the grounds that the group's translation already
+        // supplied the width change — but that "width change" was columnScan clipping a deflected eye
+        // at the canvas midline, not geometry. Measured as separate blobs the widths sat frozen at
+        // 143 through the whole sweep while the reference's receding eye went to 99.
+        this.applyTurn(ctx, box, away, [0.5, 1], lift, true);
+
+        const mag = Math.abs(clampUnit(look[0] * TURN_GAIN));
+        const pull = TURN_GAP_1 * mag + TURN_GAP_2 * mag * mag;
+        ctx.translate((this.pairCentreX() - (box.x + box.w / 2)) * pull, 0);
       }
     }
 

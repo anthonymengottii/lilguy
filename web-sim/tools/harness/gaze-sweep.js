@@ -57,17 +57,24 @@ const LOOKS = [
 ];
 
 function sample(mask) {
+  // Per-eye figures come from interEyeGap, which separates the two ink blobs. They used to come from
+  // a per-half column scan, and that clips a deflected eye at the canvas midline: it reported the eye
+  // nearer the pointer narrowing when in truth the far one recedes, and a whole turn model was fitted
+  // to the wrong shape before blob separation showed it backwards.
   const g = interEyeGap(mask);
-  const l = columnScan(mask, 'l'), r = columnScan(mask, 'r');
   const all = columnScan(mask, 'all');
   return {
     gap: g ? g.gap : null,
     centreL: g ? g.centreL : null,
     centreR: g ? g.centreR : null,
-    widthL: l.width,
-    widthR: r.width,
-    heightL: l.height,
-    heightR: r.height,
+    widthL: g ? g.widthL : null,
+    widthR: g ? g.widthR : null,
+    heightL: g ? g.heightL : null,
+    heightR: g ? g.heightR : null,
+    // True when the two eyes overlapped into one blob, so the per-eye numbers on that row are a
+    // midline approximation. The reference never merges — it holds 131.5px of separation at full
+    // deflection — so ours merging is a finding in itself.
+    merged: g ? g.merged : null,
     drawingX0: all.x0,
     drawingX1: all.x1,
     area: inkArea(mask),
@@ -118,7 +125,8 @@ async function main() {
     console.log(
       `${JSON.stringify(s.look).padEnd(11)} ${String(s.gap).padStart(6)}  ${String(r.gap).padStart(7)}  ` +
       `${String(d).padStart(6)}   ${`${s.widthL}/${s.heightL} ${s.widthR}/${s.heightR}`.padEnd(17)}` +
-      `${`${r.widthL}/${r.heightL} ${r.widthR}/${r.heightR}`.padEnd(18)}${String(dW).padStart(3)}${String(dH).padStart(4)}`
+      `${`${r.widthL}/${r.heightL} ${r.widthR}/${r.heightR}`.padEnd(18)}${String(dW).padStart(3)}${String(dH).padStart(4)}` +
+      `${s.merged ? '  (sim eyes merged)' : ''}${r.merged ? '  (ref eyes merged)' : ''}`
     );
   }
   const travelSim = Math.max(...out.sim.map((s) => s.drawingX0)) - Math.min(...out.sim.map((s) => s.drawingX0));

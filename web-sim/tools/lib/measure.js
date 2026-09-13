@@ -142,18 +142,68 @@ export function columnScan({ w, h, m }, half = 'all') {
   };
 }
 
-// Distance between the two eyes' centres, measured as two independent column scans. This is the
-// convergence instrument: the reference runs 152 at rest, 146 at half deflection, 136 at full.
+// Split the drawing into its separate ink blobs by finding the columns with no ink between them, and
+// return each one's own box. Use this, not a per-half scan, for anything that measures a single eye.
+//
+// RULE 1 says never to flood fill, and this is not one: it is a column-occupancy scan, which is the
+// same measurement columnScan makes, asking where the gaps are instead of assuming one at the midline.
+// That assumption is wrong under deflection and it produced a second round of bad numbers after the
+// flood-fill round. A per-half scan reported the eye nearer the pointer NARROWING to 133 while the
+// far one widened; measured as blobs the truth is the opposite and much larger — the receding eye
+// goes to 98 while the advancing one holds its width and lengthens. A whole turn model was fitted to
+// the clipped version before the blobs showed it backwards.
+//
+// Returns [] when the shapes have merged into one blob, which is itself a finding: the reference's
+// eyes never merge, staying 131.5px apart even at full deflection.
+export function inkBlobs({ w, h, m }, minWidth = 20) {
+  const occupied = new Array(w).fill(0);
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) if (m[y * w + x]) { occupied[x] = 1; break; }
+  }
+  const runs = [];
+  let start = -1;
+  for (let x = 0; x < w; x++) {
+    if (occupied[x]) { if (start < 0) start = x; }
+    else if (start >= 0) { runs.push([start, x - 1]); start = -1; }
+  }
+  if (start >= 0) runs.push([start, w - 1]);
+  return runs
+    .filter(([a, b]) => b - a >= minWidth)
+    .map(([x0, x1]) => {
+      let y0 = h, y1 = -1;
+      for (let x = x0; x <= x1; x++) {
+        for (let y = 0; y < h; y++) if (m[y * w + x]) { if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      return { x0, x1, w: x1 - x0 + 1, h: y1 - y0 + 1, cx: +((x0 + x1) / 2).toFixed(2) };
+    });
+}
+
+// Distance between the two eyes' centres, and each eye's own box.
+//
+// Measured from blobs rather than canvas halves — see inkBlobs. Falls back to the per-half scan when
+// the two have merged, so the caller still gets a number, but `merged` says the per-eye figures are
+// then a split-at-the-midline approximation and not the shapes themselves.
 export function interEyeGap(mask) {
+  const blobs = inkBlobs(mask);
+  if (blobs.length === 2) {
+    const [l, r] = blobs;
+    return {
+      gap: +(r.cx - l.cx).toFixed(2),
+      centreL: l.cx, centreR: r.cx,
+      widthL: l.w, widthR: r.w,
+      heightL: l.h, heightR: r.h,
+      merged: false,
+    };
+  }
   const l = columnScan(mask, 'l');
   const r = columnScan(mask, 'r');
   if (l.centreX === null || r.centreX === null) return null;
   return {
     gap: +(r.centreX - l.centreX).toFixed(2),
-    centreL: l.centreX,
-    centreR: r.centreX,
-    widthL: l.width,
-    widthR: r.width,
+    centreL: l.centreX, centreR: r.centreX,
+    widthL: l.width, widthR: r.width,
+    heightL: l.height, heightR: r.height,
+    merged: true,
   };
 }
 

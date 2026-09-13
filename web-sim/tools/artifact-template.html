@@ -126,22 +126,23 @@
     backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code> vinha
     inflado 1,129×.
     <br><br>
-    Os olhos <b>giram</b>, não só deslizam: o que vira para longe estreita e alonga, o que vira para
-    perto alarga e achata, como na original. Antes a altura ficava travada em 161px em toda pose e a
-    área variava 0,04% contra os ~6% dela — conservar área é a assinatura de translação pura. Não é
-    projeção de perspectiva: varri 11.340 configurações de pinhole e <b>nenhuma</b> alarga e encurta
-    ao mesmo tempo, que é o que a original faz.
+    Os olhos têm <b>profundidade</b>: o que se afasta encolhe nos dois eixos (144→98px de largura) e
+    o que vem à frente alonga, e a distância entre eles contrai de 152 para 131px. Medido contra a
+    original em toda a varredura do ponteiro, o erro máximo por olho é de <b>1px</b>.
     <br><br>
-    O <b>ganho do ponteiro</b> agora é o da própria original: vetor unitário vezes a distância
-    normalizada pela <i>janela</i> (não pelo canvas), com teto 2. Antes era uma divisão por eixo pela
-    metade do canvas, limitada a 1 — quatro vezes mais ávida, então os olhos batiam no limite em meia
-    tela e paravam ali. Com um mouse de verdade a 200px do centro, a original desloca 15px e nós
-    deslocávamos 3; agora 13.
+    Isso demorou porque o instrumento mentia. Medir cada olho partindo o canvas ao meio <i>recorta</i>
+    o olho deslocado na divisão, e dizia que o olho do lado do cursor estreitava. É o contrário:
+    separando os dois borrões de tinta de verdade, quem estreita é o que <i>recua</i>. Um modelo de
+    giro inteiro chegou a ser ajustado à versão recortada antes de a medição por borrões mostrar o
+    sinal trocado.
     <br><br>
-    <b>O que falta.</b> No extremo do olhar a original desloca 47px e nós 29. A curva dela
-    <i>acelera</i> — 54px por unidade de olhar perto do centro, 94 na borda — e uma translação é
-    linear por construção, então mais deslocamento estouraria o meio para consertar a ponta. Nas
-    diagonais a altura erra até 6px.
+    O <b>ganho do ponteiro</b> é o da própria original: vetor unitário vezes a distância normalizada
+    pela <i>janela</i> (não pelo canvas), com teto 2. Antes era uma divisão por eixo pela metade do
+    canvas, limitada a 1 — quatro vezes mais ávida, então os olhos batiam no limite em meia tela e
+    paravam ali.
+    <br><br>
+    <b>O que falta.</b> O deslocamento total ainda é menor que o da original (15px contra 24 na faixa
+    medida): a resposta dela <i>acelera</i> perto da borda e uma translação é linear por construção.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
