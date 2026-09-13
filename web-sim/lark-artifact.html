@@ -195,22 +195,38 @@
 // readable, so each is an approximation chosen to match observed motion. Ids seen in the shipped
 // clips: 0, 14, 15, 22, 23, 24 (24 is by far the most common).
 const CURVES = {
-  // Step: the segment jumps to its TARGET value immediately and holds it. Used only on opacity.
-  // Holding the SOURCE value instead makes the pupil's invisible window infinitely narrow — in
-  // `blink` the lane is (150,v=1) -> (233,v=0) -> (300,v=1), so source-hold means opacity is 1
-  // right up to t=233 and already climbing again at t=234. A full sweep showed exactly that: our
-  // closed frame floored at 24.2% of open area, which is 8762px against the ~8567px of two
-  // pupils — the eye shut correctly and the pupils never left. The reference stays under 8% for
-  // ~150ms. In blink2..blink5 the c:0 keyframe carries v=1 and the fade to 0 runs on c:24, so
-  // both readings agree there and only `blink` distinguishes them.
-  0: () => 1,
+  // Step: the segment HOLDS ITS SOURCE value and only changes when the later keyframe is reached.
+  //
+  // This file used to read it the other way, as a jump to the target, and that is what made the
+  // pupil disappear from an eye that was still visibly open. `blink`'s pupil opacity lane is
+  // (150,v=1) -> (233,v=0) -> (300,v=1), and since the curve on the LATER keyframe governs the
+  // segment leading into it, target-jump drove opacity to 0 at t=151 and held it there until the
+  // t=300 ease brought it back. The eye's closed path does not peak until t=250, so the pupil went
+  // out roughly 100ms before the lid arrived and came back as the lid reopened.
+  //
+  // The measurement that justified target-jump was not imprecise, it had the wrong sign. It argued
+  // that source-hold left the closed frame at 24.2% of open area — 8762px against the ~8567px of
+  // two pupils — and concluded the pupils never left. But `c: "000000"` is a HOLE punched with
+  // destination-out (see drawNode), so a pupil SUBTRACTS from total ink. Total area cannot detect
+  // whether a pupil is present, in either direction, and that whole comparison measured nothing.
+  //
+  // Scope of the correct reading, audited across the shipped data: there are exactly twelve `c:0`
+  // keyframes, all of them on `o` lanes on pup_l/pup_r. Eleven are the FIRST keyframe of their
+  // lane, where sampleLane returns early on `t <= keys[0].t` and never evaluates a curve. Only
+  // `blink`'s second keyframe (t=233, v=0) is a non-first one, and no non-opacity lane anywhere
+  // uses `c:0`. So this governs `blink` and nothing else: blink2..blink5 fade on c:24 and are
+  // unaffected either way.
+  0: () => 0,
   14: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out
   15: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out (path morphs)
   22: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
   23: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
   24: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2), // ease-in-out
 };
-const curveFn = (c) => CURVES[c] || CURVES[24];
+// Keyed on presence, not truthiness: `CURVES[c] || CURVES[24]` would send any curve that evaluates
+// to a falsy function — or a future entry written as a constant rather than a function — silently to
+// the ease-in-out default.
+const curveFn = (c) => (c in CURVES ? CURVES[c] : CURVES[24]);
 
 const lerp = (a, b, u) => a + (b - a) * u;
 
