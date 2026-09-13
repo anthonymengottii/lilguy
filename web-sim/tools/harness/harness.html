@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>lark harness</title>
+<style>
+  /* No CSS sizing at all. The canvas is its backing store and nothing else, so a measurement can
+     never pick up a CSS scale factor. A 420/372 ratio on the demo page is exactly what made the
+     inter-eye gap read 168 instead of 151.6. */
+  body { margin: 0; background: #111; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<!-- 400x400 is the authoring space of the data. No CROP translation here: the harness measures the
+     scene in its own coordinates so numbers are comparable to the reference, which also renders the
+     full 400x400 box. -->
+<canvas id="stage" width="400" height="400"></canvas>
+<script src="../../anim_data.js"></script>
+<script src="../../behavior_data.js"></script>
+<script type="module">
+import { LarkRuntime } from '../../lark.js';
+import { BehaviorRunner } from '../../behavior.js';
+
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+const params = new URLSearchParams(location.search);
+const rt = new LarkRuntime(ANIM_DATA, params.get('state') || '1b');
+const br = new BehaviorRunner(rt, BEHAVIOR_DATA);
+
+// The harness drives time itself. Nothing here calls performance.now() or requestAnimationFrame:
+// every frame is rendered at an explicit millisecond offset supplied by the caller, so our t=250 and
+// the reference's t=250 are the same moment. Comparing against a global minimum instead, or counting
+// samples across two pages with different read rates, supports no conclusion.
+window.__lark = {
+  rt,
+  br,
+  // Render one frame at absolute time `now`, with an optional look vector. The behaviour layer is
+  // off by default: a measurement of a named clip must not have ambient blinks landing in it.
+  render(now, look = [0, 0], { behaviour = false } = {}) {
+    rt.setLook(look[0], look[1]);
+    if (behaviour) br.update(now, look);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    rt.draw(ctx, now, { width: canvas.width, height: canvas.height });
+  },
+  setState(id) {
+    rt.setState(id);
+    rt.active = [];
+  },
+  // Play one clip with a known start time, so a keyframe's t maps to a render time directly.
+  play(name, start = 0, category = null) {
+    return rt.play(name, start, category);
+  },
+  clear() { rt.active = []; },
+  startBehaviour(now = 0, sensor15 = 0.9) {
+    br.setSensor(15, sensor15);
+    br.start(now);
+  },
+  states: Object.keys(ANIM_DATA.states).sort(),
+  clips: Object.keys(ANIM_DATA.animations),
+};
+// Signals to the harness that the module graph loaded. Without this a failed import reads as a
+// blank canvas, which is indistinguishable from a rendering bug.
+window.__larkReady = true;
+</script>
+</body>
+</html>

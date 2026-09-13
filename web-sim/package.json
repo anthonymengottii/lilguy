@@ -1,0 +1,21 @@
+{
+  "name": "web-sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser replica of the hesjustalittleguy.com eyes: a Lark-format runtime plus the harnesses that measure it against the reference.",
+  "scripts": {
+    "serve:ref": "node tools/serve.js ../../lilguy-fork/public 8793",
+    "serve:sim": "node tools/serve.js . 8794",
+    "baseline": "node tools/harness/iou-states.js --write",
+    "measure:iou": "node tools/harness/iou-states.js",
+    "measure:gaze": "node tools/harness/gaze-sweep.js",
+    "measure:blink": "node tools/harness/blink-shape.js",
+    "measure:t3d": "node tools/harness/t3d-probe.js",
+    "build": "node tools/build-artifact.js",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
