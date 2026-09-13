@@ -22,15 +22,15 @@
         0
       ],
       "gap": 147.5,
-      "centreL": 128.5,
-      "centreR": 276,
-      "widthL": 142,
-      "widthR": 153,
+      "centreL": 129,
+      "centreR": 276.5,
+      "widthL": 141,
+      "widthR": 154,
       "heightL": 164,
       "heightR": 159,
-      "drawingX0": 58,
-      "drawingX1": 352,
-      "area": 36174
+      "drawingX0": 59,
+      "drawingX1": 353,
+      "area": 36153
     },
     {
       "look": [
@@ -38,15 +38,15 @@
         0
       ],
       "gap": 147.5,
-      "centreL": 131.5,
-      "centreR": 279,
-      "widthL": 136,
-      "widthR": 159,
+      "centreL": 132,
+      "centreR": 279.5,
+      "widthL": 135,
+      "widthR": 160,
       "heightL": 167,
       "heightR": 156,
-      "drawingX0": 64,
-      "drawingX1": 358,
-      "area": 36177
+      "drawingX0": 65,
+      "drawingX1": 359,
+      "area": 36182
     },
     {
       "look": [
@@ -54,15 +54,15 @@
         0
       ],
       "gap": 147.5,
-      "centreL": 123,
-      "centreR": 270.5,
-      "widthL": 153,
-      "widthR": 142,
+      "centreL": 122.5,
+      "centreR": 270,
+      "widthL": 154,
+      "widthR": 141,
       "heightL": 159,
       "heightR": 164,
-      "drawingX0": 47,
-      "drawingX1": 341,
-      "area": 36164
+      "drawingX0": 46,
+      "drawingX1": 340,
+      "area": 36165
     },
     {
       "look": [
@@ -70,15 +70,15 @@
         0
       ],
       "gap": 147.5,
-      "centreL": 120,
-      "centreR": 267.5,
-      "widthL": 159,
-      "widthR": 136,
+      "centreL": 119.5,
+      "centreR": 267,
+      "widthL": 160,
+      "widthR": 135,
       "heightL": 156,
       "heightR": 167,
-      "drawingX0": 41,
-      "drawingX1": 335,
-      "area": 36175
+      "drawingX0": 40,
+      "drawingX1": 334,
+      "area": 36170
     },
     {
       "look": [
@@ -90,11 +90,11 @@
       "centreR": 275,
       "widthL": 144,
       "widthR": 143,
-      "heightL": 159,
-      "heightR": 159,
+      "heightL": 160,
+      "heightR": 160,
       "drawingX0": 52,
       "drawingX1": 346,
-      "area": 35701
+      "area": 35672
     },
     {
       "look": [
@@ -110,7 +110,7 @@
       "heightR": 158,
       "drawingX0": 52,
       "drawingX1": 346,
-      "area": 35295
+      "area": 35241
     },
     {
       "look": [
@@ -126,7 +126,7 @@
       "heightR": 156,
       "drawingX0": 52,
       "drawingX1": 346,
-      "area": 34805
+      "area": 34839
     },
     {
       "look": [
@@ -134,15 +134,15 @@
         1
       ],
       "gap": 147.5,
-      "centreL": 131.5,
-      "centreR": 279,
-      "widthL": 136,
-      "widthR": 159,
+      "centreL": 132,
+      "centreR": 279.5,
+      "widthL": 135,
+      "widthR": 160,
       "heightL": 163,
       "heightR": 152,
-      "drawingX0": 64,
-      "drawingX1": 358,
-      "area": 35238
+      "drawingX0": 65,
+      "drawingX1": 359,
+      "area": 35219
     },
     {
       "look": [
@@ -150,15 +150,15 @@
         -1
       ],
       "gap": 147.5,
-      "centreL": 120,
-      "centreR": 267.5,
-      "widthL": 159,
-      "widthR": 136,
+      "centreL": 119.5,
+      "centreR": 267,
+      "widthL": 160,
+      "widthR": 135,
       "heightL": 151,
       "heightR": 162,
-      "drawingX0": 41,
-      "drawingX1": 335,
-      "area": 34829
+      "drawingX0": 40,
+      "drawingX1": 334,
+      "area": 34821
     }
   ],
   "ref": [
@@ -176,7 +176,7 @@
       "heightR": 162,
       "drawingX0": 52,
       "drawingX1": 347,
-      "area": 36316
+      "area": 36319
     },
     {
       "look": [
@@ -192,7 +192,7 @@
       "heightR": 159,
       "drawingX0": 58,
       "drawingX1": 352,
-      "area": 36099
+      "area": 36111
     },
     {
       "look": [
@@ -204,43 +204,43 @@
       "centreR": 277.5,
       "widthL": 133,
       "widthR": 156,
-      "heightL": 168,
-      "heightR": 156,
+      "heightL": 167,
+      "heightR": 155,
       "drawingX0": 67,
       "drawingX1": 355,
-      "area": 35383
+      "area": 35290
     },
     {
       "look": [
         -0.5,
         0
       ],
-      "gap": 147.5,
+      "gap": 147,
       "centreL": 123,
-      "centreR": 270.5,
+      "centreR": 270,
       "widthL": 153,
-      "widthR": 142,
+      "widthR": 141,
       "heightL": 159,
       "heightR": 165,
       "drawingX0": 47,
-      "drawingX1": 341,
-      "area": 36100
+      "drawingX1": 340,
+      "area": 36120
     },
     {
       "look": [
         -1,
         0
       ],
-      "gap": 145,
-      "centreL": 121,
+      "gap": 144.5,
+      "centreL": 121.5,
       "centreR": 266,
-      "widthL": 157,
+      "widthL": 156,
       "widthR": 133,
       "heightL": 156,
       "heightR": 168,
-      "drawingX0": 43,
+      "drawingX0": 44,
       "drawingX1": 332,
-      "area": 35548
+      "area": 35546
     },
     {
       "look": [
@@ -256,7 +256,7 @@
       "heightR": 162,
       "drawingX0": 52,
       "drawingX1": 347,
-      "area": 36299
+      "area": 36321
     },
     {
       "look": [
@@ -268,59 +268,59 @@
       "centreR": 276,
       "widthL": 145,
       "widthR": 145,
-      "heightL": 159,
-      "heightR": 159,
+      "heightL": 157,
+      "heightR": 157,
       "drawingX0": 51,
       "drawingX1": 348,
-      "area": 35685
+      "area": 35387
     },
     {
       "look": [
         0,
         -1
       ],
-      "gap": 150,
-      "centreL": 124.5,
-      "centreR": 274.5,
-      "widthL": 142,
-      "widthR": 142,
-      "heightL": 152,
-      "heightR": 152,
-      "drawingX0": 54,
-      "drawingX1": 345,
-      "area": 34125
+      "gap": 151,
+      "centreL": 124,
+      "centreR": 275,
+      "widthL": 143,
+      "widthR": 143,
+      "heightL": 154,
+      "heightR": 154,
+      "drawingX0": 53,
+      "drawingX1": 346,
+      "area": 34405
     },
     {
       "look": [
         1,
         1
       ],
-      "gap": 146,
+      "gap": 147,
       "centreL": 132.5,
-      "centreR": 278.5,
+      "centreR": 279.5,
       "widthL": 134,
-      "widthR": 158,
-      "heightL": 164,
-      "heightR": 153,
+      "widthR": 160,
+      "heightL": 157,
+      "heightR": 148,
       "drawingX0": 66,
-      "drawingX1": 357,
-      "area": 34914
+      "drawingX1": 359,
+      "area": 33544
     },
     {
       "look": [
         -1,
         -1
       ],
-      "gap": 144,
+      "gap": 144.5,
       "centreL": 121.5,
-      "centreR": 265.5,
+      "centreR": 266,
       "widthL": 156,
-      "widthR": 132,
-      "heightL": 153,
-      "heightR": 166,
+      "widthR": 133,
+      "heightL": 155,
+      "heightR": 167,
       "drawingX0": 44,
-      "drawingX1": 331,
-      "area": 34910
+      "drawingX1": 332,
+      "area": 35112
     }
   ],
   "cssRatio": 1

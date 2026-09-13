@@ -132,9 +132,16 @@
     projeção de perspectiva: varri 11.340 configurações de pinhole e <b>nenhuma</b> alarga e encurta
     ao mesmo tempo, que é o que a original faz.
     <br><br>
-    <b>O que falta.</b> Nas diagonais extremas a altura erra até 5px — o modelo de dois termos
-    multiplica os eixos, e nos cantos o produto fica curto demais. Os olhares alinhados a um eixo
-    ficam dentro de 3px.
+    O <b>ganho do ponteiro</b> agora é o da própria original: vetor unitário vezes a distância
+    normalizada pela <i>janela</i> (não pelo canvas), com teto 2. Antes era uma divisão por eixo pela
+    metade do canvas, limitada a 1 — quatro vezes mais ávida, então os olhos batiam no limite em meia
+    tela e paravam ali. Com um mouse de verdade a 200px do centro, a original desloca 15px e nós
+    deslocávamos 3; agora 13.
+    <br><br>
+    <b>O que falta.</b> No extremo do olhar a original desloca 47px e nós 29. A curva dela
+    <i>acelera</i> — 54px por unidade de olhar perto do centro, 94 na borda — e uma translação é
+    linear por construção, então mais deslocamento estouraria o meio para consertar a ponta. Nas
+    diagonais a altura erra até 6px.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele

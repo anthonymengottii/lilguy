@@ -44,6 +44,31 @@ test('the generated page loads and renders', async ({ page }) => {
   expect(await page.locator('#state option').count()).toBe(36);
   expect(await page.locator('#clips button').count()).toBeGreaterThan(0);
 
+  // The gaze actually responds to a pointer. Everything above passes on a page whose pointer wiring
+  // is dead — and that is not hypothetical: a redeclared const in the page wiring once threw at load
+  // and left a blank canvas, and separately the eyes moved 6px where the reference moves 47 while
+  // every other check stayed green. A few px of travel is enough to catch both.
+  const drawnX0 = () => page.evaluate(() => {
+    const c = document.querySelector('#stage');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    for (let x = 0; x < c.width; x++) {
+      for (let y = 0; y < c.height; y++) if (d[(y * c.width + x) * 4 + 3] > 16) return x;
+    }
+    return -1;
+  });
+  const box = await page.locator('#stage').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+  const centred = await drawnX0();
+  await page.mouse.move(box.x + box.width / 2 + 400, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+  const deflected = await drawnX0();
+  expect(
+    deflected - centred,
+    `the gaze barely moved for a 400px pointer offset (${centred} -> ${deflected}); ` +
+    `is the pointer wiring live and is LOOK_TRAVEL_X sane?`
+  ).toBeGreaterThan(5);
+
   // No module syntax survived — it would have thrown above, but say so explicitly.
   const html = await page.content();
   expect(/^\s*(export|import)\s/m.test(html)).toBe(false);

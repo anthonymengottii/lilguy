@@ -28,8 +28,25 @@ import { GAP_TOLERANCE, HEIGHT_TOLERANCE, AREA_SPREAD_MIN } from '../lib/thresho
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASELINE = path.join(HERE, '..', 'baseline', 'gaze.json');
 
-// Rest, half and full deflection in both directions, plus the vertical axis. The reference's own
-// figures for the gap are 152 / 146 / 136 at rest / half / full.
+// The look values a REAL POINTER actually produces, not the full [-1, 1] range.
+//
+// This harness drives our runtime with a look vector while driving the reference with a mouse, so the
+// two only compare if the values on our side are the ones the reference's own normalisation would
+// have produced for the same pointer. That normalisation divides by min(innerWidth, innerHeight) and
+// caps at 2, so in a 1200x900 viewport a pointer 450px from the canvas centre — most of the way to
+// the edge — yields 0.5, not 1.
+//
+// Sweeping [-1, 1] instead compared a pointer near the canvas against a pointer 900px away, and it is
+// how LOOK_TRAVEL_X came to be set five times too small: matched at |look| = 1, a value the reference
+// hardly ever reaches, while in real use the eyes moved 6px where the reference moves 47.
+//
+// `ref.look(x, y)` places the pointer at x * (box.width / 2) from the centre, so a look of L here
+// corresponds to a pointer offset of L * 200px in the reference's 400px box, and the matching value
+// for our runtime is that offset over 900.
+const REF_BOX_HALF = 200;       // the reference's canvas is 400px wide
+const REF_NORM = 900;           // min(innerWidth, innerHeight) of the harness viewport
+const toLook = (f) => +Math.min((Math.abs(f) * REF_BOX_HALF) / REF_NORM, 2).toFixed(4) * Math.sign(f);
+
 const LOOKS = [
   [0, 0],
   [0.5, 0], [1, 0],
@@ -66,7 +83,10 @@ async function main() {
     const sim = await openSim(context, { state: '1b' });
     for (const look of LOOKS) {
       await sim.clear();
-      await sim.render(0, look);
+      // toLook converts the pointer position ref.look() will use into the look value the reference's
+      // own normalisation derives from it, so both sides see the same gaze. Feeding `look` straight
+      // in compares a pointer at the canvas edge against one 900px away.
+      await sim.render(0, [toLook(look[0]), toLook(look[1])]);
       const shot = await sim.capture();
       out.cssRatio = shot.cssRatio;
       out.sim.push({ look, ...sample(inkMask(shot)) });

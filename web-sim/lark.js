@@ -96,20 +96,47 @@ const HOLE_COLOUR = '000000';
 //
 // Overshooting here also masked the 3D turn: the per-eye widths were mirroring correctly all
 // along, but a slide that large reads as sliding regardless of what the widths do.
-// RECALIBRATED to 0.10 after the lid-clip and hole fixes. 0.187 was fitted when a black pupil was
-// still being filled rather than punched out, so "the drawing" whose travel was being matched was a
-// different shape than the reference's — and the constant absorbed that difference. Swept against the
-// reference's own per-eye widths at five pointer positions, summed absolute width error:
+// RECALIBRATED to 0.50 against a REAL POINTER, which is the only way this constant means anything.
 //
-//     travelX   0.187   0.14   0.12   0.10   0.09   0.08
-//     err @0.5     10      4      2      0      1     11
-//     err @1.0     20      8      6      6      6      5
+// It was 0.10, fitted by sweeping the look vector over [-1, 1] and matching the drawing's travel to
+// the reference's — 23px against 23px, which looked like a clean result and was measuring the wrong
+// thing. The reference's own pointer normalisation almost never reaches |look| = 1: it divides by
+// min(innerWidth, innerHeight), so at 450px from the canvas centre its look is 0.5, not 1. Sweeping
+// a range the reference does not use matched the endpoints of two curves that disagree everywhere in
+// between, and in real use the eyes moved 6px where the reference moves 47.
 //
-// 0.10 is the first value that matches half deflection exactly and it holds the extreme; below 0.08
-// the eyes stop moving enough and half deflection breaks outright. End-to-end travel also comes down
-// from 43px to near the reference's 23px.
-const LOOK_TRAVEL_X = 0.10;
-const LOOK_TRAVEL_Y = 0.17;
+// Re-measured by driving both pages with an actual mouse at the same offsets, taking largest-ink
+// frames so neither side's blink lands in the sample (px of travel from rest):
+//
+//     pointer dx    50   100   200   300   450
+//     reference      3     7    15    26    47
+//     TX = 0.10      1     2     3     4     6
+//     TX = 0.30      2     4     8    12    18
+//     TX = 0.50      3     7    13    20    30
+//
+// 0.50 tracks the reference through the range a pointer actually spends its time in and falls short
+// only at the far extreme. That shortfall is not travel: the reference's px-per-look-unit RISES from
+// 54 near the centre to 94 at the edge, and a translation is linear by construction. The acceleration
+// is the eye turning — the drawn extent grows faster than the slide because the far eye lengthens —
+// so chasing it with more travel would overshoot the middle to fix the end.
+const LOOK_TRAVEL_X = 0.50;
+// Same story as the x axis — fitted over a |look| range the reference's normalisation never reaches —
+// and re-measured the same way, driving both pages with a real pointer within the viewport (px of
+// vertical travel from rest, the reference's box has only 200px of room below it so the sweep stays
+// inside +-250):
+//
+//     pointer dy   -250   -150    -75    +75   +150   +250
+//     reference     -17     -9     -4     -7     -3    +17
+//     ours at 0.85  -33    -20    -10     -1     +7    +34
+//
+// Ours moved almost exactly twice as far, so 0.85 / 2. The reference's vertical response is roughly
+// a third of its horizontal, which this ratio preserves.
+const LOOK_TRAVEL_Y = 0.42;
+
+// The look vector's own limit, matching the reference's `Math.min(magnitude / referenceDistance, 2)`.
+// Not 1: the reference genuinely drives the gaze past unity once the pointer is more than one
+// window-min away, and capping at 1 put a hard ceiling on how far the drawing could travel.
+const LOOK_CAP = 2;
 
 // THE TURN. How much an eye lengthens as it swings away from the viewer, per unit of deflection.
 //
@@ -137,6 +164,13 @@ const LOOK_TRAVEL_Y = 0.17;
 // sat frozen at 161-162 in every pose while the reference ran 147 to 168.
 const TURN_SQUASH_X = 0.0816;
 const TURN_STRETCH_Y = 0.0355;
+
+// The turn coefficients above are per unit of DEFLECTION, where 1 is the reference fully turned. Its
+// pointer normalisation reaches that at a look of roughly 0.22 (450px from the canvas centre over a
+// 900px window min, halved again by how far the eyes actually swing), so the look has to be scaled
+// onto that range before it drives the turn. 4.5 = 1 / 0.22.
+const TURN_GAIN = 4.5;
+const clampUnit = (v) => Math.max(-1, Math.min(1, v));
 
 // The vertical look shortens both eyes with no per-eye sign, and asymmetrically: looking down takes
 // 162 to 157 (ratio 0.963) while looking up barely moves them (0.988). TURN_LIFT_Y carries the part
@@ -353,12 +387,18 @@ export class LarkRuntime {
   // Clip and pointer ADD rather than replace: `idle` rocks `l` by +-0.12 forever, so taking the
   // clip's value when present left the pointer permanently suppressed and the gaze dead, while
   // taking the pointer's value would drop the ambient bob. The reference does both at once.
+  //
+  // The cap is 2, matching the reference's own `Math.min(magnitude / referenceDistance, 2)`. It used
+  // to be 1, and with the pointer already saturating four times too early that put a hard ceiling on
+  // the whole gaze: the drawing stopped travelling at x0 = 64 no matter how far the pointer went,
+  // against the reference's 99. Clamping at 1 also erased the ambient `idle` bob entirely whenever
+  // the pointer sat at an extreme, which is exactly when the eyes most looked dead.
   lookFor(now) {
     const clip = this.channelsFor('', now).l || [0, 0];
     const p = this.look;
     return [
-      Math.max(-1, Math.min(1, clip[0] + p[0])),
-      Math.max(-1, Math.min(1, clip[1] + p[1])),
+      Math.max(-LOOK_CAP, Math.min(LOOK_CAP, clip[0] + p[0])),
+      Math.max(-LOOK_CAP, Math.min(LOOK_CAP, clip[1] + p[1])),
     ];
   }
 
@@ -534,9 +574,16 @@ export class LarkRuntime {
       // clipped to the eye: shrinking a hole changes no ink. The variation lives in the eye outline.
       if (llSource && !o.ll) {
         const side = box.x + box.w / 2 < this.pairCentreX() ? 1 : -1;
-        const away = side * look[0];
+        // TURN_GAIN puts the turn on the same scale as the travel. The turn coefficients were fitted
+        // against per-eye boxes at the reference's own full deflection, which its pointer reaches at a
+        // look of about 0.22 — not 1 — so feeding the raw look here left the eyes turning about a
+        // fifth as much as they should, and the area spread that proves they turn at all fell from
+        // 3.94% to 0.89%. One constant drives both, so a future change to one cannot silently leave
+        // the slide and the turn disagreeing.
+        const away = clampUnit(side * look[0] * TURN_GAIN);
         // The vertical look shortens both eyes with no per-eye sign, and more when looking down.
-        const lift = 1 - TURN_LIFT_Y * Math.abs(look[1]) - TURN_LIFT_BIAS * Math.max(0, -look[1]);
+        const ly = clampUnit(look[1] * TURN_GAIN);
+        const lift = 1 - TURN_LIFT_Y * Math.abs(ly) - TURN_LIFT_BIAS * Math.max(0, -ly);
         // squashX = 0: the group's own translation, read through columnScan's per-half split, already
         // supplies the width change. See the note above TURN_SQUASH_X.
         this.applyTurn(ctx, box, away, [0.5, 1], lift, 0);

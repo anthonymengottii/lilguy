@@ -87,19 +87,48 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-// The gaze follows the pointer anywhere on the page, not just over the canvas: with the dead
-// margin cropped away there is no longer a large box to aim at, and the eyes tracking you across
-// the whole page is what the original does. Distance is measured from the canvas centre and
-// normalised against the canvas half-size, so the eyes reach full deflection at roughly one
-// canvas-width away and simply stay there beyond that.
-window.addEventListener('pointermove', (e) => {
+// The gaze, normalised exactly the way the original's own renderer does it. This is not a detail:
+// the previous reading here was a per-axis divide by the canvas half-size, clamped to +-1, and it
+// was about four times too eager. At 200px from the canvas centre it produced a look of 0.952 where
+// the original produces 0.222 — so the eyes slammed to their limit within half a screen and then sat
+// there, which is what "not expressive" actually was. The fix is not more travel, it is the right
+// curve: the original stays gentle near the centre and keeps responding far out.
+//
+// Copied from animation_renderer_web.js, which does:
+//   - a UNIT vector times a magnitude, not an independent divide per axis, so diagonal motion does
+//     not reach the limit on both axes at once;
+//   - normalised against min(innerWidth, innerHeight) — the WINDOW, not the canvas, so the crop and
+//     the CSS size of this page do not change the feel;
+//   - capped at 2, not 1. The runtime's own clamp matches.
+//
+// The one thing NOT copied is the sign of y. The original negates it because its WASM works in a
+// y-up space; this runtime is y-down like the canvas, and the two agree once that is accounted for —
+// measured at the pixel, the drawing's centre moves from y=192 to y=221 on the original and 189 to
+// 215 here for the same downward pointer, so negating here would invert a gaze that already matches.
+// LOOK_CAP comes from lark.js — the build concatenates both into one scope, so declaring it here too
+// is a redeclaration that kills the whole script.
+function lookFromPointer(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
-  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  look = [
-    Math.max(-1, Math.min(1, (e.clientX - cx) / (r.width / 2))),
-    Math.max(-1, Math.min(1, (e.clientY - cy) / (r.height / 2))),
-  ];
+  const dx = clientX - (r.left + r.width / 2);
+  const dy = clientY - (r.top + r.height / 2);
+  const mag = Math.hypot(dx, dy);
+  if (!mag) return [0, 0];
+  const scale = Math.min(mag / Math.min(window.innerWidth, window.innerHeight), LOOK_CAP);
+  return [(dx / mag) * scale, (dy / mag) * scale];
+}
+
+window.addEventListener('pointermove', (e) => {
+  look = lookFromPointer(e.clientX, e.clientY);
   rt.setLook(look[0], look[1]);
 });
+// Touch too. The original disables tracking entirely on a coarse pointer, so its eyes simply ignore
+// a touch; here a tap or drag drives the same gaze as a mouse, which is the more useful behaviour on
+// a phone and costs nothing on a desktop.
+window.addEventListener('touchmove', (e) => {
+  const t = e.touches[0];
+  if (!t) return;
+  look = lookFromPointer(t.clientX, t.clientY);
+  rt.setLook(look[0], look[1]);
+}, { passive: true });
 // Leaving the window entirely relaxes the gaze back to centre.
 document.addEventListener('pointerleave', () => { look = [0, 0]; rt.setLook(0, 0); });
