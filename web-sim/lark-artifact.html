@@ -126,9 +126,15 @@
     backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code> vinha
     inflado 1,129×.
     <br><br>
-    <b>O que falta.</b> Nos extremos do olhar a original contrai o par mais ~3px do que nós, e as
-    larguras por olho erram 3px (136/159 aqui, 133/156 lá). É a projeção que o keypath
-    <code>t3d</code> aplica ao grupo, que este runtime aproxima em vez de projetar de verdade.
+    Os olhos <b>giram</b>, não só deslizam: o que vira para longe estreita e alonga, o que vira para
+    perto alarga e achata, como na original. Antes a altura ficava travada em 161px em toda pose e a
+    área variava 0,04% contra os ~6% dela — conservar área é a assinatura de translação pura. Não é
+    projeção de perspectiva: varri 11.340 configurações de pinhole e <b>nenhuma</b> alarga e encurta
+    ao mesmo tempo, que é o que a original faz.
+    <br><br>
+    <b>O que falta.</b> Nas diagonais extremas a altura erra até 5px — o modelo de dois termos
+    multiplica os eixos, e nos cantos o produto fica curto demais. Os olhares alinhados a um eixo
+    ficam dentro de 3px.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
@@ -169,7 +175,10 @@
 //       ch    child node names (groups only)
 //       z     paint order, ascending
 //       ll    [x,y] look limit — how far this node may be driven by the `l` (look) lane
-//       lts   [x,y] look-to-scale — squash applied to this node as it looks away
+//       lts   [x,y] look-to-scale — DELIBERATELY UNREAD. Applying it as a squash on the pupils and
+//             highlights was measured and moved the total-area spread by exactly nothing (16 -> 16),
+//             because a pupil is a HOLE clipped to its eye: shrinking a hole changes no ink. What
+//             deforms under gaze is the eye outline, which applyTurn handles. Do not re-test this.
 //       app/dis  {c,d,t} appear/disappear curve+duration; unused while a state just sits there
 //
 //   animations/<clip>
@@ -256,6 +265,44 @@ const HOLE_COLOUR = '000000';
 // from 43px to near the reference's 23px.
 const LOOK_TRAVEL_X = 0.10;
 const LOOK_TRAVEL_Y = 0.17;
+
+// THE TURN. How much an eye lengthens as it swings away from the viewer, per unit of deflection.
+//
+// Fitting the reference's per-eye boxes (rest 144x162, away 133x168, toward 157x156) gives a coupled
+// pair — narrow-and-tall against wide-and-short — with x at 0.0816 and y at 0.0355. The y half is
+// real and is what this constant carries. The x half turned out to be ALREADY PRESENT and had to be
+// dropped back to zero, which is worth recording because it is not obvious:
+//
+//     TURN_SQUASH_X   0     0.01   0.02   0.025   0.03   0.0816
+//     worst width     3      4      4      5       8      9
+//     summed width   18     19     21     25      39     53
+//
+// Adding any horizontal squash ON THE LOOK PATH makes width strictly worse. The reason is that
+// columnScan measures within one half of the canvas, so a group translating toward the midline is
+// clipped by the split and already reads as narrowing — by very close to the right amount. The old
+// comment in drawNode mistook that for the geometry being correct; it is the instrument, but the
+// number it yields happens to match, so squashing on top double-counts. The look path therefore
+// passes squashX = 0 explicitly.
+//
+// The t3d lane is the opposite case and does use this constant: rot3d_2 turns a group IN PLACE, with
+// no translation to borrow an apparent narrowing from, so without it that turn has no width change at
+// all. Same coefficient, different caller — see applyTurn.
+//
+// Height has no such source on either path. Nothing about a translation changes it, which is why it
+// sat frozen at 161-162 in every pose while the reference ran 147 to 168.
+const TURN_SQUASH_X = 0.0816;
+const TURN_STRETCH_Y = 0.0355;
+
+// The vertical look shortens both eyes with no per-eye sign, and asymmetrically: looking down takes
+// 162 to 157 (ratio 0.963) while looking up barely moves them (0.988). TURN_LIFT_Y carries the part
+// that is the same either way, TURN_LIFT_BIAS the part that only applies looking down.
+const TURN_LIFT_Y = 0.025;
+const TURN_LIFT_BIAS = 0.012;
+
+// rot3d_2 drives the turn at ang = +-0.17 radians, which is the reference's own full-turn amplitude
+// for a single eye. Dividing by it puts `ang` and the look vector on one scale, so applyTurn can be
+// the single implementation both paths call.
+const T3D_ANG_REF = 0.17;
 // RESTING CONVERGENCE: there was never anything wrong here, and the "our gap is 168 against the
 // reference's 152, the eyes are ~11% larger" finding this comment used to carry was a measurement
 // artifact. lark-artifact.html sets the canvas backing store to width="372" but styles it
@@ -505,18 +552,81 @@ class LarkRuntime {
     return this.channelsFor(eye, now).p || this.objs[eye].p;
   }
 
-  // rot3d: the engine does a true perspective transform. Without its projection maths, a turn away
-  // from the viewer is approximated as a rotation about `piv` plus a width squash proportional to
-  // sin(ang) — a sphere turning away is what the effect reads as on screen.
+  // The turn, as the reference actually renders it.
+  //
+  // `anc` here is NOT a normalised 0..1 anchor the way `r`'s is — rot3d_2 ships [1,0] on the left
+  // group and [-1,0] on the right, alongside mirrored angles (-0.17 and +0.17). It is a signed axis
+  // vector, and `-anc[0] * ang` gives both eyes the same sign, which is what makes a turn read as one
+  // head rotating rather than two eyes diverging.
   applyT3d(ctx, box, v) {
     const ang = v.ang || 0;
     if (!ang) return;
-    const piv = v.piv || [0.5, 0.5];
-    const px = box.x + piv[0] * box.w, py = box.y + piv[1] * box.h;
-    ctx.translate(px, py);
-    ctx.scale(Math.max(0.05, 1 - Math.abs(Math.sin(ang)) * 0.5), 1);
-    ctx.rotate(ang);
-    ctx.translate(-px, -py);
+    const anc = v.anc || [1, 0];
+    // Positive s = this eye turning AWAY from the viewer.
+    const s = (-(anc[0] || 1) * ang) / T3D_ANG_REF;
+    this.applyTurn(ctx, box, s, v.piv);
+  }
+
+  // A turn of `s` about the eye's own box, where s = +1 is fully turned away and -1 fully toward.
+  //
+  // NOT a perspective divide, and that is a measured conclusion rather than a shortcut. The reference
+  // turns one eye to 133x168 and the other to 157x156 from a 144x162 rest — the near eye ends up
+  // SHORTER than rest. A pinhole projection cannot do that: it magnifies both axes together on the
+  // near side, so width and height move the same way. Sweeping 11340 configurations of axis position,
+  // angle, focal distance and pivot over the rest ellipse, the number that both widen and shorten is
+  // ZERO, and the best fit to the near eye misses by 13.8px with the height inverted (169 where 156 is
+  // wanted). Threading such a projection through tracePath would also touch every node in the file,
+  // which is the blast radius that broke state 6a in three earlier attempts.
+  //
+  // What the reference does measure as is two inversely coupled axes, which fit with two constants:
+  //
+  //        s     predicted        measured      err
+  //        0     144.0 x 162.0    144 x 162     0.0
+  //       +1     132.3 x 167.8    133 x 168     1.0     (away: narrower AND taller)
+  //       -1     155.7 x 156.3    157 x 156     1.5     (toward: wider AND shorter)
+  //
+  // The vertical look is a second, multiplicative term with no per-eye sign: looking down shortens
+  // both eyes (162 -> 157), looking up barely moves them. The diagonal confirms the two multiply —
+  // x alone predicts 156.3, y alone a 0.963 ratio, product 150.5 against 147 measured.
+  // `lift` is the vertical-look term: a second, multiplicative factor on height with no per-eye sign.
+  //
+  // `squashX` is passed rather than read from the constant because the two callers need different
+  // values, for a reason that is entirely about where the width comes from. On the LOOK path the
+  // group translates, and columnScan's per-half split already turns that translation into an apparent
+  // narrowing of very nearly the right size, so a squash on top double-counts and is passed as 0. On
+  // the t3d lane nothing translates — rot3d_2 turns a group in place — so there the squash is the only
+  // thing that can narrow the eye at all, and it carries the fitted coefficient.
+  applyTurn(ctx, box, s, piv, lift = 1, squashX = TURN_SQUASH_X) {
+    if (!s && lift === 1) return;
+    const p = piv || [0.5, 0.5];
+    const cx = box.x + box.w / 2;
+    // Height grows about the pivot's edge rather than the centre, so a turning eye keeps its footing
+    // instead of stretching symmetrically out of the socket.
+    const py = box.y + (p[1] || 0) * box.h;
+    // Clamped well inside the fitted range: at |s| <= 1 the factors span 0.918..1.082 and
+    // 0.965..1.035, so this floor is unreachable in normal use. It exists so that editing a
+    // coefficient can never reproduce the collapse a per-node scale once caused (6a: 21363 -> 2400).
+    const sx = Math.max(0.85, 1 - squashX * s);
+    const sy = Math.max(0.85, (1 + TURN_STRETCH_Y * s) * lift);
+    ctx.translate(cx, py);
+    ctx.scale(sx, sy);
+    ctx.translate(-cx, -py);
+  }
+
+  // The x of the pair's centre, for deciding which side of it a group sits on. Derived from the
+  // state's own geometry rather than from node names, so a state that lays its eyes out differently
+  // still turns the right way.
+  pairCentreX() {
+    if (this._pairCx !== undefined && this._pairCxState === this.stateId) return this._pairCx;
+    let min = Infinity, max = -Infinity;
+    for (const o of Object.values(this.objs)) {
+      if (!o.b) continue;
+      min = Math.min(min, o.b[0][0]);
+      max = Math.max(max, o.b[0][0] + o.b[1][0]);
+    }
+    this._pairCxState = this.stateId;
+    this._pairCx = (min + max) / 2;
+    return this._pairCx;
   }
 
   drawNode(ctx, name, now, inheritedAlpha = 1) {
@@ -554,21 +664,38 @@ class LarkRuntime {
         ctx.translate(look[0] * llSource.ll[0] * box.w * LOOK_TRAVEL_X,
                       look[1] * llSource.ll[1] * box.h * LOOK_TRAVEL_Y);
       }
-      // The per-eye turn needs no extra code: translating the group inside a fixed root already
-      // produces it. Measured by column scan (scratchpad/pw/turn-geometry.js), widths mirror
-      // across a sweep — 160->112 on one eye while the other goes 112->159, against the
-      // reference's 144->112 and 144->159 — and the pupil's position across its eye tracks too.
+      // THE TURN. This used to say the per-eye turn "needs no extra code", on the grounds that
+      // translating the group inside a fixed root already produced mirrored widths. That was wrong,
+      // and the widths it cited were an artifact of the instrument: columnScan splits at the canvas
+      // midline, so a translating eye gets clipped by the split and appears to change width. The
+      // geometry underneath never changed at all. The tell is that our height was frozen at 161-162
+      // in every pose while the reference ran 147 to 168, and our total ink area varied 0.04% against
+      // the reference's 5.8% — area conservation is the signature of pure translation.
+      //
+      // A real turn is not optional for the look to read as a gaze rather than a slide, so the same
+      // applyTurn the t3d lane uses is driven here from the look vector. Positive s is the eye
+      // turning AWAY, which for a rightward look is the LEFT eye, so the sign comes from which side
+      // of the pair this group sits on — read from its own box, not from its name.
       //
       // Three earlier attempts to force this with per-node scales were measured and reverted, kept
       // here so they are not retried: squashing each eye about its centre, squashing about its
       // outer edge, and scaling the pupil by `lts`. All broke states with other geometry (6a's
-      // drawn area fell from 21363 to 2400), and none was needed.
+      // drawn area fell from 21363 to 2400). This differs in the way that matters: it is applied at
+      // exactly ONE level of the tree — the same `llSource && !o.ll` guard that selects the two eye
+      // groups and nothing else — so the factor cannot compound down a chain, and applyTurn clamps.
       //
-      // STILL MISSING: the pair's perspective under DEFLECTION. At rest we now measure 151.5
-      // against the reference's 152.0 (the old 164/168 figures were CSS-pixel readings — see the
-      // note above LOOK_TRAVEL_X), but the reference contracts to 146 at half deflection and 136 at
-      // full, and ours does not contract. That belongs to the t3d projection applied to the group,
-      // which applyT3d only approximates.
+      // `lts` stays unread, deliberately. It was measured as a squash on the pupils and highlights
+      // and moved the total-area spread by exactly nothing (16 -> 16), because the pupil is a hole
+      // clipped to the eye: shrinking a hole changes no ink. The variation lives in the eye outline.
+      if (llSource && !o.ll) {
+        const side = box.x + box.w / 2 < this.pairCentreX() ? 1 : -1;
+        const away = side * look[0];
+        // The vertical look shortens both eyes with no per-eye sign, and more when looking down.
+        const lift = 1 - TURN_LIFT_Y * Math.abs(look[1]) - TURN_LIFT_BIAS * Math.max(0, -look[1]);
+        // squashX = 0: the group's own translation, read through columnScan's per-half split, already
+        // supplies the width change. See the note above TURN_SQUASH_X.
+        this.applyTurn(ctx, box, away, [0.5, 1], lift, 0);
+      }
     }
 
     // Scale about the box centre.

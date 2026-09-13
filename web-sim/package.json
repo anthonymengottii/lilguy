@@ -8,6 +8,7 @@
     "serve:ref": "node tools/serve.js ../../lilguy-fork/public 8793",
     "serve:sim": "node tools/serve.js . 8794",
     "baseline": "node tools/harness/iou-states.js --write",
+    "baseline:gaze": "node tools/harness/gaze-sweep.js --write",
     "measure:iou": "node tools/harness/iou-states.js",
     "measure:gaze": "node tools/harness/gaze-sweep.js",
     "measure:blink": "node tools/harness/blink-shape.js",

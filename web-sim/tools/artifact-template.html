@@ -126,9 +126,15 @@
     backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code> vinha
     inflado 1,129×.
     <br><br>
-    <b>O que falta.</b> Nos extremos do olhar a original contrai o par mais ~3px do que nós, e as
-    larguras por olho erram 3px (136/159 aqui, 133/156 lá). É a projeção que o keypath
-    <code>t3d</code> aplica ao grupo, que este runtime aproxima em vez de projetar de verdade.
+    Os olhos <b>giram</b>, não só deslizam: o que vira para longe estreita e alonga, o que vira para
+    perto alarga e achata, como na original. Antes a altura ficava travada em 161px em toda pose e a
+    área variava 0,04% contra os ~6% dela — conservar área é a assinatura de translação pura. Não é
+    projeção de perspectiva: varri 11.340 configurações de pinhole e <b>nenhuma</b> alarga e encurta
+    ao mesmo tempo, que é o que a original faz.
+    <br><br>
+    <b>O que falta.</b> Nas diagonais extremas a altura erra até 5px — o modelo de dois termos
+    multiplica os eixos, e nos cantos o produto fica curto demais. Os olhares alinhados a um eixo
+    ficam dentro de 3px.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele

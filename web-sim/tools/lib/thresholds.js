@@ -36,3 +36,24 @@ export const GAP_TOLERANCE = 4;
 // |widthL - widthR| while a clip with mirrored anchors runs (rot3d_2). A root turn (rot3d_1) is
 // supposed to diverge and is not gated.
 export const MIRROR_TOLERANCE = 2;
+
+// Per-eye HEIGHT against the reference at the same look. Height is the channel that shows whether the
+// eyes turn or merely slide: before the coupled turn landed, ours was frozen at 161-162 in every pose
+// while the reference ran 147 to 168, and no gate could see it because gaze-sweep collected height
+// and threw it away.
+//
+// 6 rather than the 3 the axis-aligned looks achieve, because the DIAGONAL extremes are the known
+// weak point of a two-term multiplicative model: x alone predicts 156.3 at [-1,-1] and y alone a 0.963
+// ratio, their product 150.5 against 147 measured. Fitting a third term to that one point would be
+// overfitting a corner; the residual is documented instead. Every axis-aligned look sits within 3.
+export const HEIGHT_TOLERANCE = 6;
+
+// How closely the spread of total ink area across a pointer sweep must track the reference's.
+//
+// This is the one number that distinguishes "the eyes turn" from "the eyes slide", because a pure
+// translation conserves area exactly. Ours was 0.04% against the reference's 4-9%; it is now within a
+// point of it. The band is wide because the REFERENCE side is noisy: it blinks on a clock inside its
+// WASM, and a sweep that happens to catch more closed frames reads a larger spread — repeated runs
+// gave 4.07% and 9.33% for the same build. So this gates the failure mode that matters (a spread near
+// zero, meaning the turn stopped working) and deliberately does not police the upper end.
+export const AREA_SPREAD_MIN = 0.02;

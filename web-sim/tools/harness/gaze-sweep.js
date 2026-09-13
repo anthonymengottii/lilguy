@@ -22,7 +22,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { launch, openSim, openReference } from '../lib/pages.js';
 import { inkMask, columnScan, interEyeGap, inkArea } from '../lib/measure.js';
-import { GAP_TOLERANCE } from '../lib/thresholds.js';
+import { GAP_TOLERANCE, HEIGHT_TOLERANCE, AREA_SPREAD_MIN } from '../lib/thresholds.js';
 
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -86,21 +86,41 @@ async function main() {
   }
 
   console.log(`canvas cssRatio ${out.cssRatio} (anything but 1 means CSS pixels are leaking in)\n`);
-  console.log('look        sim gap   ref gap   d     sim wL/wR    ref wL/wR');
-  let worst = 0;
+  console.log('look        sim gap  ref gap   dGap   sim wL/hL wR/hR    ref wL/hL wR/hR    dW  dH');
+  let worst = 0, worstH = 0;
   for (let i = 0; i < LOOKS.length; i++) {
     const s = out.sim[i], r = out.ref[i];
     const d = s.gap !== null && r.gap !== null ? +(s.gap - r.gap).toFixed(2) : null;
     if (d !== null) worst = Math.max(worst, Math.abs(d));
+    const dW = Math.max(Math.abs(s.widthL - r.widthL), Math.abs(s.widthR - r.widthR));
+    const dH = Math.max(Math.abs(s.heightL - r.heightL), Math.abs(s.heightR - r.heightR));
+    worstH = Math.max(worstH, dH);
     console.log(
-      `${JSON.stringify(s.look).padEnd(11)} ${String(s.gap).padStart(7)}   ${String(r.gap).padStart(7)}   ` +
-      `${String(d).padStart(6)}  ${String(s.widthL + '/' + s.widthR).padStart(10)}   ${String(r.widthL + '/' + r.widthR).padStart(10)}`
+      `${JSON.stringify(s.look).padEnd(11)} ${String(s.gap).padStart(6)}  ${String(r.gap).padStart(7)}  ` +
+      `${String(d).padStart(6)}   ${`${s.widthL}/${s.heightL} ${s.widthR}/${s.heightR}`.padEnd(17)}` +
+      `${`${r.widthL}/${r.heightL} ${r.widthR}/${r.heightR}`.padEnd(18)}${String(dW).padStart(3)}${String(dH).padStart(4)}`
     );
   }
   const travelSim = Math.max(...out.sim.map((s) => s.drawingX0)) - Math.min(...out.sim.map((s) => s.drawingX0));
   const travelRef = Math.max(...out.ref.map((s) => s.drawingX0)) - Math.min(...out.ref.map((s) => s.drawingX0));
+
+  // Area spread: the statistic that separates a turn from a slide. A pure translation conserves area
+  // exactly, so a near-zero spread means the eyes only slide however good the other numbers look.
+  const spread = (rows) => {
+    const v = rows.map((x) => x.area);
+    return (Math.max(...v) - Math.min(...v)) / Math.min(...v);
+  };
+  const spreadSim = spread(out.sim), spreadRef = spread(out.ref);
+
   console.log(`\nhorizontal travel: sim ${travelSim}px  ref ${travelRef}px`);
-  console.log(`worst gap error: ${worst.toFixed(2)}px  (tolerance ${GAP_TOLERANCE}px) -> ${worst <= GAP_TOLERANCE ? 'PASS' : 'FAIL'}`);
+  const pass = [];
+  const gate = (name, ok, detail) => { pass.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}: ${detail}`); };
+  gate('gap', worst <= GAP_TOLERANCE, `worst ${worst.toFixed(2)}px, tolerance ${GAP_TOLERANCE}px`);
+  gate('per-eye height', worstH <= HEIGHT_TOLERANCE, `worst ${worstH}px, tolerance ${HEIGHT_TOLERANCE}px`);
+  gate('area spread', spreadSim >= AREA_SPREAD_MIN,
+    `sim ${(spreadSim * 100).toFixed(2)}%, ref ${(spreadRef * 100).toFixed(2)}%, floor ${(AREA_SPREAD_MIN * 100).toFixed(0)}%` +
+    ` (a spread near zero means the eyes slide without turning)`);
+  console.log(pass.every(Boolean) ? '\nall gates PASS' : '\nsome gates FAIL');
 
   if (write) {
     fs.mkdirSync(path.dirname(BASELINE), { recursive: true });
