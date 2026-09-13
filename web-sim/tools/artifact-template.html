@@ -1,0 +1,145 @@
+<title>Lark Runtime</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f6f4;
+    --fg: #1a1a1a;
+    --muted: #6b6b66;
+    --line: #dedddA;
+    --panel: #ffffff;
+    --stage: #0f0f10;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #121213;
+      --fg: #ececea;
+      --muted: #8f8f89;
+      --line: #2a2a2c;
+      --panel: #1a1a1c;
+      --stage: #000000;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121213;
+    --fg: #ececea;
+    --muted: #8f8f89;
+    --line: #2a2a2c;
+    --panel: #1a1a1c;
+    --stage: #000000;
+  }
+  body {
+    margin: 0;
+    padding-block: 2rem;
+    padding-left: 16px;
+    padding-right: 16px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 660px; margin: 0 auto; }
+  h1 { font-size: 1.15rem; margin: 0 0 .3rem; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: .875rem; margin: 0 0 1.4rem; }
+  .stage {
+    background: var(--stage);
+    border-radius: 14px;
+    padding: 1.1rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+  }
+  /* 372x304, the union of everything the data ever draws — see the note by CROP in the script. */
+  canvas { width: 100%; max-width: 420px; height: auto; aspect-ratio: 372 / 304; display: block; touch-action: none; }
+  .panel {
+    margin-top: 1.1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .field { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; margin-bottom: .85rem; }
+  .field:last-child { margin-bottom: 0; }
+  .label { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); min-width: 5.5rem; }
+  select {
+    font: inherit; padding: .35rem .5rem; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+  button {
+    font: inherit; font-size: .84rem; padding: .3rem .6rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  }
+  button:hover { border-color: var(--muted); }
+  .note { color: var(--muted); font-size: .82rem; margin-top: 1.1rem; }
+  .note code { font-size: .95em; }
+  .warn {
+    margin-top: 1.1rem; padding: .8rem .9rem; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--muted); font-size: .84rem;
+  }
+  .warn b { color: var(--fg); font-weight: 600; }
+</style>
+
+<div class="wrap">
+  <h1>Lark Runtime</h1>
+  <p class="sub">Os olhos do hesjustalittleguy.com, executados a partir dos dados de animação do
+  próprio site, em vez de reproduzidos à mão. Mova o cursor para guiar o olhar.</p>
+
+  <div class="stage">
+    <canvas id="stage" width="372" height="304"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="field">
+      <span class="label">Estado</span>
+      <select id="state"></select>
+      <span class="label" style="min-width:0">de 36</span>
+    </div>
+    <div class="field">
+      <span class="label">Tocar clipe</span>
+      <span class="chips" id="clips"></span>
+    </div>
+    <div class="field">
+      <span class="label">Sensor 15</span>
+      <input type="range" id="sensor" min="0" max="1" step="0.05" value="0.9">
+      <span class="label" style="min-width:0" id="sensorVal">0.90</span>
+    </div>
+    <div class="field">
+      <span class="label">Disparos</span>
+      <span class="chips" id="fired"></span>
+    </div>
+  </div>
+
+  <div class="warn">
+    <b>Fidelidade medida.</b> Os 36 estados são comparados com a original automaticamente
+    (<code>npm run measure:iou</code>): sobreposição média de <b>96,9%</b>, mínima de 91,2%, e o
+    grafo de cena, as cores e os tempos dos clipes vêm direto dos dados dela. Quem escolhe qual
+    clipe toca e quando é o <code>behavior_data.json</code> da própria original — cinco das suas 23
+    regras rodam aqui; as outras citam 35 clipes que não vêm neste build.
+    <br><br>
+    A <b>piscada fechada</b> bate: fita plana de 5,4px com desvio 0,92 por coluna, contra 5,5px e
+    1,02 medidos ao vivo na original. A leitura certa do contorno de substituição é uma rotação de
+    dois pontos no array de 14 — as nove tentativas anteriores giravam o array achatado ou
+    truncavam antes de girar, descartando justamente os dois pontos que importam.
+    <br><br>
+    A <b>distância entre os olhos</b> também bate: 151,5px em repouso contra 152 da original, nos
+    36 estados. O valor de 164 que aparecia antes era artefato de medição — o canvas tem 372px de
+    backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code> vinha
+    inflado 1,129×.
+    <br><br>
+    <b>O que falta.</b> Nos extremos do olhar a original contrai o par mais ~3px do que nós, e as
+    larguras por olho erram 3px (136/159 aqui, 133/156 lá). É a projeção que o keypath
+    <code>t3d</code> aplica ao grupo, que este runtime aproxima em vez de projetar de verdade.
+  </div>
+
+  <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
+  é distribuído. Cinco dos clipes dependem de sensores que a versão web nunca alimenta, então na
+  original eles não chegam a rodar.</p>
+</div>
+
+<script src="anim_data.js"></script>
+<script src="behavior_data.js"></script>
+<script>
+<!--INJECT:lark-->
+<!--INJECT:behavior-->
+<!--INJECT:page-->
+</script>

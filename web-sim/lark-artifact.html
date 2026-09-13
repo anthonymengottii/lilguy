@@ -110,24 +110,25 @@
   </div>
 
   <div class="warn">
-    <b>Em andamento.</b> A pose de repouso bate com a original em 99,1% de sobreposição, e o grafo
-    de cena, as cores e os tempos dos clipes vêm direto dos dados dela. Quem escolhe qual clipe toca
-    e quando é o <code>behavior_data.json</code> da própria original — sete das suas 23 regras
-    rodam aqui; as outras dezesseis citam 35 clipes que não vêm neste build.
+    <b>Fidelidade medida.</b> Os 36 estados são comparados com a original automaticamente
+    (<code>npm run measure:iou</code>): sobreposição média de <b>96,9%</b>, mínima de 91,2%, e o
+    grafo de cena, as cores e os tempos dos clipes vêm direto dos dados dela. Quem escolhe qual
+    clipe toca e quando é o <code>behavior_data.json</code> da própria original — cinco das suas 23
+    regras rodam aqui; as outras citam 35 clipes que não vêm neste build.
     <br><br>
-    Duas coisas ainda não batem. A <b>forma</b> da piscada fechada: a original deixa uma fita plana
-    de ~5px (desvio 1,0 por coluna), esta deixa uma irregular de ~10px — nove leituras do contorno
-    de substituição foram medidas contra o pixel, inclusive uma em que o array começa num ponto de
-    controle em vez de num nó, e nenhuma produziu a fita plana. A altura do fechamento e o sumiço
-    da pupila estão corretos; só o contorno não.
+    A <b>piscada fechada</b> bate: fita plana de 5,4px com desvio 0,92 por coluna, contra 5,5px e
+    1,02 medidos ao vivo na original. A leitura certa do contorno de substituição é uma rotação de
+    dois pontos no array de 14 — as nove tentativas anteriores giravam o array achatado ou
+    truncavam antes de girar, descartando justamente os dois pontos que importam.
     <br><br>
-    E a <b>perspectiva do par</b>. O giro de cada olho existe e está medido: ao olhar para o lado,
-    o olho do lado do cursor estreita e o outro alarga, espelhados (187→140 de um lado enquanto o
-    outro vai 141→187, contra 160→112 e 112→159 na original), e a distância percorrida bate
-    (46px contra 48px). O que falta é o par inteiro: na original a distância entre os centros dos
-    dois olhos encolhe de 152 para 136px nos extremos, e aqui ela fica fixa em 164 — os olhos
-    também são ~11% maiores em repouso. É a projeção que o keypath <code>t3d</code> aplica ao
-    grupo, que este runtime só aproxima.
+    A <b>distância entre os olhos</b> também bate: 151,5px em repouso contra 152 da original, nos
+    36 estados. O valor de 164 que aparecia antes era artefato de medição — o canvas tem 372px de
+    backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code> vinha
+    inflado 1,129×.
+    <br><br>
+    <b>O que falta.</b> Nos extremos do olhar a original contrai o par mais ~3px do que nós, e as
+    larguras por olho erram 3px (136/159 aqui, 133/156 lá). É a projeção que o keypath
+    <code>t3d</code> aplica ao grupo, que este runtime aproxima em vez de projetar de verdade.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
@@ -138,58 +139,83 @@
 <script src="anim_data.js"></script>
 <script src="behavior_data.js"></script>
 <script>
-// ===============================================================================================
-// A runtime for the Lark scene/animation format that hesjustalittleguy.com ships as
-// anim_data.json. Nothing here is a measured constant: every shape, colour, timing and transform
-// is read from the data, which is what lets all 36 states load without a measuring pass each.
+// =============================================================================================
+// GENERATED FILE — DO NOT EDIT.
 //
-// FORMAT
+// Built by tools/build-artifact.js from lark.js, behavior.js and tools/artifact-page.js, wrapped in
+// tools/artifact-template.html. Edit those and re-run `npm run build`; editing this file loses the
+// change on the next build, and test/build.spec.js fails if the two ever disagree.
+// =============================================================================================
+
+// A runtime for the Lark scene/animation format that hesjustalittleguy.com ships as
+// anim_data.json + behavior_data.json. Nothing here is a measured constant: every shape, colour,
+// timing and transform is read from the data. That is the point — the previous engine
+// (lilguy.js) reproduced ONE state by measuring the reference's pixels, so each new state meant
+// another measuring pass. This one loads any of the 36 states as data.
+//
+// FORMAT, as decoded from the shipped files:
 //
 //   states/<id>/objs/<name>      one node of a scene graph
 //       type  "path" | "group"
 //       p     24 numbers = 12 points: a CLOSED CUBIC BEZIER with nodes at indices 0,3,6,9 and the
-//             last control pair wrapping back to node 0. Verified against the live original at
-//             99.2% IoU with identical 144x161 bounding boxes. Reading these as samples along the
-//             outline instead is what made an earlier attempt render a visibly wobbly eye: they
-//             are control points, not samples.
+//             last control pair wrapping back to node 0. Verified against the live renderer at
+//             99.2% IoU (identical 144x161 bounding boxes) — see scratchpad/pw/path-align.js.
+//             Reading these as samples along the outline instead is what made an earlier attempt
+//             render a visibly wobbly eye: they are control points, not samples.
 //       b     [[minX,minY],[w,h]] — the node's own box. NOT a centre: for pup_l it equals the
-//             exact span of the path points. Normalised anchors (anc/piv, 0..1) resolve against it.
+//             exact span of the path points. Normalised anchors (anc/piv, in 0..1) resolve
+//             against this box.
 //       c     fill colour, 6-digit hex without '#'
 //       ch    child node names (groups only)
 //       z     paint order, ascending
 //       ll    [x,y] look limit — how far this node may be driven by the `l` (look) lane
-//       lts   [x,y] look-to-scale — squash applied as the node looks away
+//       lts   [x,y] look-to-scale — squash applied to this node as it looks away
+//       app/dis  {c,d,t} appear/disappear curve+duration; unused while a state just sits there
 //
 //   animations/<clip>
-//       durationMs, repeat ("l" loop | "n" once), and `lanes` as a FLAT array alternating
-//       [ {keypath, object}, [keyframes...], {keypath, object}, [keyframes...], ... ]
-//       Each keyframe is {t, c, v}; `u: true` means "use the object's rest value" instead of v.
+//       durationMs, repeat ("l" loop | "n" once), blend, and `lanes` as a FLAT array alternating
+//       [ {keypath, object}, [keyframes...] , {keypath, object}, [keyframes...] , ... ]
+//       Each keyframe is {t, c, v} where `c` is a curve id and `v` the value; `u: true` means
+//       "use the object's original value" (the rest pose) instead of an explicit one.
 //
-//   keypaths      p (replacement outline) · t [x,y,z] px · s [sx,sy] · o opacity
-//                 l [x,y] look · r {anc,ang} · t3d {anc,ang,piv}
+//   keypaths, with the value shape each carries:
+//       p     array[28] or u  — a REPLACEMENT path, morphed toward. Note 14 points, where the
+//                               rest pose has 12; see morphPath for how that is reconciled.
+//       t     [x,y,z] px      — translation
+//       s     [sx,sy]         — scale about the node's box centre
+//       o     number          — opacity
+//       l     [x,y] in -1..1  — look direction, scaled per-node by `ll`
+//       r     {anc,ang}       — rotation by `ang` radians about normalised anchor `anc`
+//       t3d   {anc,ang,piv}   — a perspective turn; approximated here, see applyT3d
 //
-// An empty `object` on a lane means the lane drives the root.
-// ===============================================================================================
+// An empty `object` on a lane means the lane drives the whole state (the root).
 
-// Curve ids index a table compiled into the original's WASM, which is not readable, so each is an
-// approximation chosen to match observed motion. Ids present in the shipped clips: 0,14,15,22,23,24.
+// ---------------------------------------------------------------------------------------------
+// Curves. The ids are indices into a table compiled into the reference's WASM, which is not
+// readable, so each is an approximation chosen to match observed motion. Ids seen in the shipped
+// clips: 0, 14, 15, 22, 23, 24 (24 is by far the most common).
 const CURVES = {
-  // Step: the segment takes its TARGET value immediately and holds it. Used only on opacity.
-  // Holding the SOURCE instead makes the pupil's invisible window infinitely narrow — in `blink`
-  // the lane is (150,v=1) -> (233,v=0) -> (300,v=1), so source-hold keeps opacity at 1 right up to
-  // t=233 and it is already climbing at t=234. A sweep showed exactly that: the closed frame
-  // floored at 24.2% of open area, which is 8762px against the ~8567px of two pupils — the eye
-  // shut correctly and the pupils never left. In blink2..blink5 the c:0 keyframe carries v=1 and
-  // the fade to 0 runs on c:24, so both readings agree there; only `blink` distinguishes them.
+  // Step: the segment jumps to its TARGET value immediately and holds it. Used only on opacity.
+  // Holding the SOURCE value instead makes the pupil's invisible window infinitely narrow — in
+  // `blink` the lane is (150,v=1) -> (233,v=0) -> (300,v=1), so source-hold means opacity is 1
+  // right up to t=233 and already climbing again at t=234. A full sweep showed exactly that: our
+  // closed frame floored at 24.2% of open area, which is 8762px against the ~8567px of two
+  // pupils — the eye shut correctly and the pupils never left. The reference stays under 8% for
+  // ~150ms. In blink2..blink5 the c:0 keyframe carries v=1 and the fade to 0 runs on c:24, so
+  // both readings agree there and only `blink` distinguishes them.
   0: () => 1,
-  14: (t) => 1 - Math.pow(1 - t, 3),
-  15: (t) => 1 - Math.pow(1 - t, 3),
+  14: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out
+  15: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out (path morphs)
   22: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
   23: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
-  24: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
+  24: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2), // ease-in-out
 };
 const curveFn = (c) => CURVES[c] || CURVES[24];
+
 const lerp = (a, b, u) => a + (b - a) * u;
+
+// A node whose colour is exactly this is punched OUT of its group rather than filled. See drawNode.
+const HOLE_COLOUR = '000000';
 
 // How much of a node's own box the look lane may move it, per axis, on top of that node's `ll`.
 // Measured off the reference rather than guessed — see the note in drawNode.
@@ -200,18 +226,40 @@ const lerp = (a, b, u) => a + (b - a) * u;
 //
 // Overshooting here also masked the 3D turn: the per-eye widths were mirroring correctly all
 // along, but a slide that large reads as sliding regardless of what the widths do.
-const LOOK_TRAVEL_X = 0.187;
-const LOOK_TRAVEL_Y = 0.17;
-// NOT IMPLEMENTED: the pair's own perspective. On the reference the distance between eye centres
-// runs 152 at rest, 146 at half deflection and 136 at full, symmetric in both directions; ours
-// sits at 168 throughout. Pulling each group toward the pair's centre by |look|^2 was tried and
-// reverted: it did contract the gap (168 -> 156) but dragged the pupils with it, giving them a
-// -17px vertical offset under a purely horizontal look, which the reference never shows.
+// RECALIBRATED to 0.10 after the lid-clip and hole fixes. 0.187 was fitted when a black pupil was
+// still being filled rather than punched out, so "the drawing" whose travel was being matched was a
+// different shape than the reference's — and the constant absorbed that difference. Swept against the
+// reference's own per-eye widths at five pointer positions, summed absolute width error:
 //
-// The deeper problem is that our resting gap is already 168 against 152 — the eyes are ~11%
-// larger to begin with — so a convergence factor fitted to close it would be the right number for
-// the wrong reason, matching at one point while the underlying scale stays off.
+//     travelX   0.187   0.14   0.12   0.10   0.09   0.08
+//     err @0.5     10      4      2      0      1     11
+//     err @1.0     20      8      6      6      6      5
+//
+// 0.10 is the first value that matches half deflection exactly and it holds the extreme; below 0.08
+// the eyes stop moving enough and half deflection breaks outright. End-to-end travel also comes down
+// from 43px to near the reference's 23px.
+const LOOK_TRAVEL_X = 0.10;
+const LOOK_TRAVEL_Y = 0.17;
+// RESTING CONVERGENCE: there was never anything wrong here, and the "our gap is 168 against the
+// reference's 152, the eyes are ~11% larger" finding this comment used to carry was a measurement
+// artifact. lark-artifact.html sets the canvas backing store to width="372" but styles it
+// max-width:420px, so anything measured through getBoundingClientRect comes back inflated by
+// 420/372 = 1.129 — and 168/1.129 = 148.8, against the data's own gap of 151.62 (group_eye_l and
+// group_eye_r box centres at x = 124.18 and 275.80 in state 1b).
+//
+// Measured properly, through the backing store, by tools/harness/gaze-sweep.js: our resting gap is
+// 151.5 against the reference's 152.0, with per-eye widths matching to the pixel (144/144, 143/144).
+// The runtime applies no global scale and never needed one.
+//
+// The deflected case is the part that remains open: the reference contracts to 146 at half
+// deflection and 136 at full. Pulling each group toward the pair's centre by |look|^2 was tried and
+// reverted — it contracted the gap but dragged the pupils with it, giving them a -17px vertical
+// offset under a purely horizontal look, which the reference never shows. The contraction belongs to
+// the t3d perspective projection applied per group, which applyT3d only approximates; rot3d_2 drives
+// t3d on exactly group_eye_l and group_eye_r with mirrored anc [1,0] / [-1,0], which is where to
+// verify any real projection. Do not fit a convergence constant into the look path.
 
+// Sample one lane's keyframes at time t. `original` supplies the value for `u: true` frames.
 function sampleLane(keys, t, original) {
   const valueAt = (k) => (k.u ? original : k.v !== undefined ? k.v : original);
   if (!keys.length) return original;
@@ -227,33 +275,92 @@ function sampleLane(keys, t, original) {
     const va = valueAt(a), vb = valueAt(b);
     if (typeof va === 'number' && typeof vb === 'number') return lerp(va, vb, u);
     if (Array.isArray(va) && Array.isArray(vb)) return morphPath(va, vb, u);
-    if (va && vb && typeof va === 'object') return { ...vb, ang: lerp(va.ang || 0, vb.ang || 0, u) };
+    if (va && vb && typeof va === 'object') {
+      // r / t3d: interpolate the angle, carry the anchors through.
+      return { ...vb, ang: lerp(va.ang || 0, vb.ang || 0, u) };
+    }
     return u < 1 ? va : vb;
   }
   return valueAt(last);
 }
 
-// A rest pose has 12 points and a replacement has 14, but only the first 12 are outline in either
-// (see tracePath), so both are truncated to 12 and paired index by index.
-function morphPath(a, b, u) {
-  if (u <= 0) return a;
-  if (u >= 1) return b;
-  const n = Math.min(24, a.length, b.length);
-  const out = new Array(n);
-  for (let i = 0; i < n; i++) out[i] = lerp(a[i], b[i], u);
+// Bring any `p` array into the canonical 12-point form: 24 numbers, nodes at indices 0, 3, 6, 9.
+//
+// State poses already arrive that way (all 166 of them are exactly 24 numbers) and pass through
+// untouched. Animation replacement paths arrive as 28 numbers, and their canonical form starts at
+// POINT 2, wrapping: points (i + 2) mod 14 for i = 0..11.
+//
+// The offset is not a guess. There are only two distinct replacement paths in the whole dataset (one
+// per eye), reused across all ten `p` keyframes, so all fourteen rotations of each can be scored
+// directly. Rasterising each rotation and measuring per-column ribbon thickness — the statistic that
+// distinguishes a flat ribbon from a lumpy one of the same extent — gives:
+//
+//     offset 2  mean 4.71  per-column sd 0.98   <- the reference measures 5.6 / 0.96
+//     offset 13 mean 6.84  per-column sd 2.29
+//     offset 10 mean 3.52  per-column sd 2.37
+//     offset 0  (what this file used to read)   per-column sd 5.50
+//
+// Offset 2 wins by 2.3x on the deciding statistic and wins IDENTICALLY on both paths. At that offset
+// the geometry is visibly flat by construction: indices 2,3,4 are an evenly spaced collinear vertical
+// triple and 5,6,7 a collinear horizontal one — straight edges, which is what a closed lid is.
+//
+// An earlier round of nine readings (14 points as a cubic, as a polyline, as alternating quadratics,
+// as Catmull-Rom, nodes-first reordering, and offsets 0/1/2/3) missed this because it rotated the FLAT
+// 28-number array — desynchronising x from y — and/or truncated to 12 points before rotating, which
+// discards points 12 and 13, the very ones offset 2 needs. Those two points are outline, not the
+// "wrap data" this file used to call them.
+//
+// Doing this in one place fixes two bugs at once, which is why it is not inlined into either caller:
+// morphPath pairs arrays index by index, and that pairing is only meaningful once both sides are
+// canonical. Before this, a morph paired rest-pose NODES against replacement CONTROL points, so every
+// intermediate frame of a blink was wrong even when both endpoints were right. Post-rotation the two
+// traversals agree: rest nodes run x = 96.1 (top) -> 189.7 (right) -> 152.1 (bottom) -> 59 (left) and
+// the replacement's run 131.5 -> 191.4 -> 131.5 -> 71.6, same order.
+const REPLACEMENT_OFFSET = 2;
+function normalizePath(p) {
+  if (!Array.isArray(p)) return p;
+  const n = p.length / 2;
+  if (n <= 12) return p;                     // already canonical; identity, not a copy
+  const out = new Array(24);
+  for (let i = 0; i < 12; i++) {
+    const j = (i + REPLACEMENT_OFFSET) % n;
+    out[i * 2] = p[j * 2];
+    out[i * 2 + 1] = p[j * 2 + 1];
+  }
   return out;
 }
 
-// Closed cubic Bezier, nodes every 3rd point, last control wrapping to node 0.
+// Interpolate between two point arrays.
 //
-// KNOWN LIMITATION: this is correct for rest poses (all 166 carry 12 points, verified at 99.1%
-// IoU) but does not reproduce the original's CLOSED blink. The original's shut eye is a flat
-// ribbon ~5px tall with very little variation along its length; this reading gives an uneven one
-// averaging ~10px. Eight alternative readings were measured — all 14 points as cubic, as polyline,
-// as alternating quadratics, Catmull-Rom through them, and a nodes-first reordering — and every
-// one stayed between 2456 and 3832px against the original's 1211px, none flat. So the closed shape
-// is not recoverable from the replacement outline alone; some other lane shapes it.
-function tracePath(ctx, p) {
+// Both sides are normalised first, so a 12-point rest pose and a 14-point replacement are paired
+// node-to-node and control-to-control. See normalizePath for why the pairing only holds after that.
+//
+// An earlier version padded the shorter array by repeating its last control pair to make the
+// lengths match. That invented geometry: the repeated points land on top of an existing node and
+// drag the closing segment inward as the morph runs.
+function morphPath(a, b, u) {
+  if (u <= 0) return a;
+  if (u >= 1) return b;
+  const na = normalizePath(a), nb = normalizePath(b);
+  const n = Math.min(24, na.length, nb.length);
+  const out = new Array(n);
+  for (let i = 0; i < n; i++) out[i] = lerp(na[i], nb[i], u);
+  return out;
+}
+
+// Trace a `p` array as a closed cubic Bezier: nodes every 3rd point, last control wrapping to
+// node 0.
+//
+// The array is normalised first, so a 14-point replacement path is rotated into its canonical
+// 12-point form rather than truncated. Truncating is what this function used to do, and it silently
+// discarded the two points that carry the closed lid's straight edges — see normalizePath.
+//
+// Measure the result with per-column ribbon thickness, never with a bounding box. The previous
+// reading matched the reference's closed box to 3px (259x25 against 256x24) and was still wrong: a
+// box cannot distinguish the reference's flat 5.6px ribbon from the ~10px lumpy one that reading
+// produced. tools/harness/blink-shape.js measures the statistic that can.
+function tracePath(ctx, rawP) {
+  const p = normalizePath(rawP);
   const n = Math.min(12, Math.floor(p.length / 2));
   if (n < 4) return;
   const X = (i) => p[(i % n) * 2], Y = (i) => p[(i % n) * 2 + 1];
@@ -265,11 +372,12 @@ function tracePath(ctx, p) {
 }
 
 class LarkRuntime {
+  // animData: the parsed anim_data.json. stateId: which of its 36 states to render.
   constructor(animData, stateId = '1b') {
     this.data = animData;
-    this.active = [];
-    this.look = [0, 0];
     this.setState(stateId);
+    this.active = [];     // running clip instances
+    this.look = [0, 0];   // pointer-driven look vector, -1..1 per axis
   }
 
   setState(stateId) {
@@ -286,6 +394,8 @@ class LarkRuntime {
     return null;
   }
 
+  // Start a clip by name. Clips of the same category replace each other in the reference's
+  // behaviour layer; here the caller decides, and `play` simply adds an instance.
   // Start a clip. Clips belonging to a CATEGORY replace whatever else that category is running:
   // that is what categories are for in behavior_data, and without it instances pile up. A slow
   // pointer drag fired blink_look on nearly every frame, leaving 31 concurrent blink instances
@@ -304,10 +414,13 @@ class LarkRuntime {
   setLook(x, y) { this.look = [x, y]; }
 
   update(now) {
-    this.active = this.active.filter((i) =>
-      i.clip.repeat === 'l' ? true : now - i.start < i.clip.durationMs);
+    this.active = this.active.filter((i) => {
+      if (i.clip.repeat === 'l') return true;             // loops never end
+      return now - i.start < i.clip.durationMs;
+    });
   }
 
+  // Collect every lane value that applies to one object at time `now`, from all running clips.
   channelsFor(name, now) {
     const out = {};
     for (const inst of this.active) {
@@ -317,7 +430,8 @@ class LarkRuntime {
       for (let i = 0; i < lanes.length; i += 2) {
         const head = lanes[i], keys = lanes[i + 1];
         if (!head || head.object !== name) continue;
-        out[head.keypath] = sampleLane(keys, t, this.originalFor(name, head.keypath));
+        const orig = this.originalFor(name, head.keypath);
+        out[head.keypath] = sampleLane(keys, t, orig);
       }
     }
     return out;
@@ -350,14 +464,34 @@ class LarkRuntime {
     return null;
   }
 
+  // A node's box, used to resolve normalised anchors. It is NOT a clip rectangle — clipping every
+  // node to its own `b` was measured across all 36 states and changed nothing, because `b` is just
+  // the path's bounding box. See the note in drawNode.
   boxOf(name) {
     const b = this.objs[name].b;
     return { x: b[0][0], y: b[0][1], w: b[1][0], h: b[1][1] };
   }
 
-  // The original does a true perspective transform here. Without its projection maths, a turn away
-  // from the viewer is approximated as a rotation about `piv` plus a width squash — a sphere
-  // turning away is what the effect reads as on screen.
+  // The lid a node is clipped to: the `eye_*` path inside the same group. A node's own eye is its
+  // lid, so eye_l and eye_r clip to themselves, which is a no-op and is skipped.
+  //
+  // The pupil and the highlight paths are SIBLINGS of the eye inside group_eye_*, not its children,
+  // so there is no parent relationship to read this from — it has to be looked up by group.
+  // `now` matters: during a blink the eye's `p` lane replaces its outline, and the pupil has to be
+  // clipped to the CLOSING lid, not to the rest pose. Taking the rest pose here would leave the pupil
+  // visible through a shut eye.
+  lidFor(name, now) {
+    if (/^eye_/.test(name)) return null;
+    const parent = this.parentOf(name);
+    if (!parent) return null;
+    const eye = (this.objs[parent].ch || []).find((c) => /^eye_/.test(c));
+    if (!eye) return null;
+    return this.channelsFor(eye, now).p || this.objs[eye].p;
+  }
+
+  // rot3d: the engine does a true perspective transform. Without its projection maths, a turn away
+  // from the viewer is approximated as a rotation about `piv` plus a width squash proportional to
+  // sin(ang) — a sphere turning away is what the effect reads as on screen.
   applyT3d(ctx, box, v) {
     const ang = v.ang || 0;
     if (!ang) return;
@@ -374,15 +508,17 @@ class LarkRuntime {
     if (!o) return;
     const ch = this.channelsFor(name, now);
     const box = this.boxOf(name);
+
     const alpha = inheritedAlpha * (ch.o !== undefined ? ch.o : 1);
     if (alpha <= 0.001) return;
 
     ctx.save();
+
+    // Translation, in plain pixels.
     if (ch.t) ctx.translate(ch.t[0] || 0, ch.t[1] || 0);
 
     // LOOK. `l` is always driven on the root, and each node consumes it through its own `ll`
-    // (travel limit) or `lts` (look-to-scale). Applied here per node rather than inherited through
-    // the transform stack, so a node without either is left alone.
+    // (travel limit) or `lts` (look-to-scale).
     //
     // The scale factors are calibrated against the reference, driven through a pointer grid
     // (scratchpad/pw/lark-gaze.js): its eye centres travel 66px horizontally and ~50px vertically
@@ -403,22 +539,23 @@ class LarkRuntime {
                       look[1] * llSource.ll[1] * box.h * LOOK_TRAVEL_Y);
       }
       // The per-eye turn needs no extra code: translating the group inside a fixed root already
-      // produces it, because each eye's own path is clipped by nothing and the pair's boxes shift
-      // against each other. Measured by column scan (scratchpad/pw/turn-geometry.js), widths
-      // mirror across a sweep — 160->112 on one eye while the other goes 112->159, against the
-      // reference's 144->112 and 144->159 — and the pupil's position across its eye tracks too
-      // (0.64->0.75 here, 0.64->0.75 there).
+      // produces it. Measured by column scan (scratchpad/pw/turn-geometry.js), widths mirror
+      // across a sweep — 160->112 on one eye while the other goes 112->159, against the
+      // reference's 144->112 and 144->159 — and the pupil's position across its eye tracks too.
       //
       // Three earlier attempts to force this with per-node scales were measured and reverted, kept
       // here so they are not retried: squashing each eye about its centre, squashing about its
       // outer edge, and scaling the pupil by `lts`. All broke states with other geometry (6a's
       // drawn area fell from 21363 to 2400), and none was needed.
       //
-      // STILL MISSING: the pair's own perspective. The reference's inter-eye centre distance
-      // contracts from 152 to 136 at both extremes; ours stays at 164. That belongs to the t3d
-      // projection applied to the group, which this runtime only approximates.
+      // STILL MISSING: the pair's perspective under DEFLECTION. At rest we now measure 151.5
+      // against the reference's 152.0 (the old 164/168 figures were CSS-pixel readings — see the
+      // note above LOOK_TRAVEL_X), but the reference contracts to 146 at half deflection and 136 at
+      // full, and ours does not contract. That belongs to the t3d projection applied to the group,
+      // which applyT3d only approximates.
     }
 
+    // Scale about the box centre.
     if (ch.s) {
       const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
       ctx.translate(cx, cy);
@@ -426,6 +563,7 @@ class LarkRuntime {
       ctx.translate(-cx, -cy);
     }
 
+    // Rotation about a normalised anchor.
     if (ch.r && ch.r.ang) {
       const anc = ch.r.anc || [0.5, 0.5];
       const ax = box.x + anc[0] * box.w, ay = box.y + anc[1] * box.h;
@@ -437,54 +575,125 @@ class LarkRuntime {
     if (ch.t3d) this.applyT3d(ctx, box, ch.t3d);
 
     if (o.type === 'group') {
-      const kids = (o.ch || []).slice()
-        .sort((a, b) => (this.objs[a] ? this.objs[a].z : 0) - (this.objs[b] ? this.objs[b].z : 0));
+      // Children paint in ascending z.
+      const kids = (o.ch || []).slice().sort((a, b) => (this.objs[a]?.z ?? 0) - (this.objs[b]?.z ?? 0));
       for (const k of kids) this.drawNode(ctx, k, now, alpha);
     } else {
+      // `ul: true` — "use lid", on every node in every state — means a path is clipped to its
+      // SIBLING EYE's outline. The eye itself is the lid: in the half-lidded states its path is a
+      // shallow crescent, and anything inside the group (pupil, highlights) is cut to it.
+      //
+      // Measured three readings against the reference across the eight states that span the range
+      // (aligned IoU, so the reference's constant 2-5px vertical placement offset is out of it):
+      //
+      //   state   no clip   clipped to own `b`   clipped to the eye's path
+      //   6e       0.427          0.427                   0.663
+      //   6b       0.638          0.638                   0.760
+      //   6d       0.658          0.658                   0.710
+      //   3e       0.584          0.584                   0.632
+      //   1b       0.994          0.994                   0.994
+      //   5a       0.997          0.997                   0.997
+      //
+      // So `b` is NOT a clip rectangle — clipping to it changes nothing anywhere, because it is the
+      // path's own bounding box (plus, on groups, the union of the children's). It stays what it was:
+      // the box that normalised anchors resolve against. The eye's path is the clip, and it only bites
+      // where the pupil would otherwise escape a half-closed lid, which is why the states that already
+      // matched are untouched.
+      // `c: "000000"` is not the colour black — it is a HOLE. The node is punched out of whatever its
+      // group has already painted, so the page background shows through.
+      //
+      // Reading it as a black fill is what held two thirds of the states back, and it hid behind the
+      // fact that the reference's own page background is #111: a black pupil on a near-black ground
+      // looks right to the eye and is only wrong to a measurement. The residual told the real story —
+      // our extra ink formed a ring, and "reference draws what we do not" was 140px out of 14345, so
+      // the outer silhouette was already correct and only the middle was filled in wrongly.
+      //
+      // Aligned IoU, black-as-fill against black-as-hole:
+      //
+      //   6e 0.664 -> 0.918     1e 0.593 -> 0.912     3e 0.632 -> 0.934
+      //   6b 0.756 -> 0.934     6d 0.714 -> 0.930     5d 0.800 -> 0.942
+      //   1d 0.840 -> 0.956     5c 0.847 -> 0.951
+      //
+      // and the states with a coloured pupil (1b, 5a, 6f, 2e) are bit-identical either way, because
+      // the rule never fires for them. Every state whose pupil is "000000" was in the failing set and
+      // no state with a coloured pupil was — 1a/3a/4a are the exceptions that prove it, scoring ~0.98
+      // with a black pupil simply because theirs is small enough not to matter much.
+      const p = ch.p || o.p;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = `#${o.c}`;
+      const lid = o.ul ? this.lidFor(name, now) : null;
+      if (lid) {
+        ctx.beginPath();
+        tracePath(ctx, lid);
+        ctx.clip();
+      }
+      if (o.c === HOLE_COLOUR) ctx.globalCompositeOperation = 'destination-out';
       ctx.beginPath();
-      tracePath(ctx, ch.p || o.p);
+      tracePath(ctx, p);
       ctx.fill();
     }
+
     ctx.restore();
   }
 
-  draw(ctx, now, { width = 400, height = 400 } = {}) {
+  draw(ctx, now, { width = 400, height = 400, background = null } = {}) {
     this.update(now);
-    ctx.clearRect(0, 0, width, height);
-    const roots = this.roots.slice()
-      .sort((a, b) => (this.objs[a] ? this.objs[a].z : 0) - (this.objs[b] ? this.objs[b].z : 0));
+    if (background) {
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, width, height);
+    }
+    const roots = this.roots.slice().sort((a, b) => (this.objs[a]?.z ?? 0) - (this.objs[b]?.z ?? 0));
     for (const r of roots) this.drawNode(ctx, r, now);
   }
 }
 
-// ===============================================================================================
-// BEHAVIOUR LAYER — decides WHICH clip plays and WHEN, read from behavior_data.json.
+
+// The behaviour layer that drives a LarkRuntime: it decides WHICH clip plays and WHEN, from
+// behavior_data.json, the same way the original site does.
 //
-// Each rule: i = id, c = category, t = trigger, o = conditions, a = actions.
+// The file is a list of rules under `r`, each shaped:
 //
-//   triggers    1 {l,u}   random interval between l and u SECONDS
-//               4 {}      a human arrives (proximity sensor)
-//               6/7       sensor and accelerometer thresholds
-//              10 {v}     the look vector moved by more than v
-//              11 {}      once at boot
-//   conditions  0 [...]   a list, all of which must hold
-//              14/15      sensor comparisons — 15 is battery/light on the physical device
-//   actions     0 {i}     play clip i          1 {o[]}  weighted pick
-//               6 {s}     proceed with probability s     8 {t,d}  drive the look vector
-//              10/11      lock / unlock a category      12/13     suspend / resume a category
+//   i  rule id                     e.g. "blink_ambient"
+//   c  category                    rules in one category interrupt each other, never stack
+//   t  trigger      {code: payload}
+//   o  condition    {code: payload} — all must hold for the rule to fire
+//   a  actions      [{code: payload}, ...] — run in order when it fires
 //
-// Seven of the 23 rules reference only clips this build ships and can run in full: init,
+// CODES, decoded from the shipped data:
+//
+//   triggers    1  {l,u}    fire on a random interval between l and u SECONDS
+//               4  {}       a human arrives (proximity sensor)
+//               6  {t,v}    sensor 6 crosses v
+//               7  {t,h,v}  accelerometer magnitude crosses v
+//              10  {v}      the look vector moves by more than v
+//              11  {}       once at boot
+//
+//   conditions  0  [...]    a list of sub-conditions, all of which must hold
+//              14  {v}      sensor 14 above v
+//              15  {o,v}    sensor 15 compared against v — battery/light on the physical device
+//
+//   actions     0  {i,w}    play clip i
+//               1  {o[],w}  pick one of o by weight and play it
+//               6  {s}      only proceed with probability s
+//               8  {t,d,w}  drive the look vector to t over d seconds
+//              10  {} / 11  {}   lock / unlock the current category
+//              12  {i} / 13 {i}  suspend / resume category i
+//
+// WHAT RUNS HERE. Seven rules reference only clips this build ships and so run in full: init,
 // blink_ambient, blink_look, blink_ambient_s, blink_look_s, rot, rot3d. The other sixteen name 35
-// clips absent from anim_data.json (dance_hp, spin_h, curious_3, eye_scale, heart_sprites, ...),
-// so they are parsed and registered but never fire. They are kept rather than stripped so the rule
-// set mirrors the data.
-// ===============================================================================================
+// clips that are absent from anim_data.json — dance_hp, bored_roll, spin_h, curious_3, shock_5,
+// eye_scale, heart_sprites and the rest — so they are parsed and registered but can never fire.
+// They are kept rather than stripped so the rule set stays a faithful mirror of the data.
+//
+// Sensor-gated rules are the other inert group: every `15` condition tests a sensor the web build
+// never feeds, which is why blink4/blink5 and all three sleep rules never play on the real site
+// either. Leaving them unfed reproduces that, rather than inventing values to make them run.
+
 const SENSOR_UNSET = null;
 // Minimum gap between two firings of the same category from a look trigger — see update().
 const LOOK_TRIGGER_COOLDOWN_MS = 2500;
 
+// Compare helper for the {o, v} condition shape.
 function compare(actual, op, expected) {
   if (actual === SENSOR_UNSET) return false;   // an unfed sensor satisfies nothing
   switch (op) {
@@ -498,26 +707,29 @@ function compare(actual, op, expected) {
 }
 
 class BehaviorRunner {
+  // runtime: a LarkRuntime. data: the parsed behavior_data.json.
   constructor(runtime, data, { random = Math.random } = {}) {
     this.rt = runtime;
     this.rules = (data && data.r) || [];
     this.random = random;
-    this.sensors = {};
-    this.nextAt = new Map();
+    this.sensors = {};          // nothing is fed by default; see the note above
+    this.nextAt = new Map();    // rule id -> next scheduled fire time
     this.lastLook = [0, 0];
-    this.suspended = new Set();
-    this.locked = new Set();
+    this.suspended = new Set(); // categories suspended by action 12
+    this.locked = new Set();    // categories locked by action 10
     this.started = false;
-    this.log = [];
-    this.lastFired = new Map();   // category -> when a look-triggered rule last fired for it
+    this.log = [];              // recent firings, for inspection
+    this.lastFired = new Map(); // category -> when a look-triggered rule last fired for it
   }
 
+  // Feed a sensor value so rules gated on it can run. Left alone, those rules stay inert exactly
+  // as they do on the web build.
   setSensor(id, value) { this.sensors[String(id)] = value; }
 
   start(now) {
     this.started = true;
     for (const rule of this.rules) {
-      if (rule.t && rule.t['11']) this.fire(rule, now);
+      if (rule.t && rule.t['11']) this.fire(rule, now);          // boot rules
       const iv = rule.t && rule.t['1'];
       if (iv) this.nextAt.set(rule.i, now + this.interval(iv));
     }
@@ -530,8 +742,11 @@ class BehaviorRunner {
     if (!o) return true;
     for (const [code, payload] of Object.entries(o)) {
       if (code === '0') {
+        // A list of sub-conditions, each itself a {code: payload} map.
         for (const sub of payload) {
-          for (const [sc, sp] of Object.entries(sub)) if (!this.singleCondition(sc, sp)) return false;
+          for (const [sc, sp] of Object.entries(sub)) {
+            if (!this.singleCondition(sc, sp)) return false;
+          }
         }
       } else if (!this.singleCondition(code, payload)) return false;
     }
@@ -539,8 +754,8 @@ class BehaviorRunner {
   }
 
   singleCondition(code, payload) {
-    // 14 and 15 are sensor comparisons. Anything else is a gate a browser cannot evaluate, so it
-    // counts as unmet rather than assumed true.
+    // 14 and 15 are sensor comparisons; anything else is a gate we cannot evaluate in a browser,
+    // so it is treated as unmet rather than assumed true.
     if (code === '15' || code === '14') {
       const v = this.sensors[code] !== undefined ? this.sensors[code] : SENSOR_UNSET;
       if (payload && payload.o) return compare(v, payload.o, payload.v);
@@ -550,6 +765,7 @@ class BehaviorRunner {
     return false;
   }
 
+  // Run a rule's actions. Returns true if a clip was actually started.
   fire(rule, now) {
     let played = false;
     // `stop` is the probability gate (action 6) failing: it halts the REMAINING actions, but
@@ -562,19 +778,28 @@ class BehaviorRunner {
       if (stop) break;
       for (const [code, payload] of Object.entries(action)) {
         switch (code) {
-          case '0': if (this.rt.play(payload.i, now, rule.c)) played = true; break;
-          case '1': {
+          case '0': {                                   // play a named clip
+            if (this.rt.play(payload.i, now, rule.c)) played = true;
+            break;
+          }
+          case '1': {                                   // weighted pick
             const pick = this.weighted(payload.o || []);
             if (pick && this.rt.play(pick, now, rule.c)) played = true;
             break;
           }
-          case '6': if (this.random() > (payload.s ?? 1)) stop = true; break;
-          case '8': if (payload.t && this.rt.setLook) this.rt.setLook(payload.t[0], payload.t[1]); break;
+          case '6': {                                   // probability gate
+            if (this.random() > (payload.s ?? 1)) stop = true;
+            break;
+          }
+          case '8': {                                   // drive the look vector
+            if (payload.t && this.rt.setLook) this.rt.setLook(payload.t[0], payload.t[1]);
+            break;
+          }
           case '10': this.locked.add(rule.c); break;
           case '11': this.locked.delete(rule.c); break;
           case '12': this.suspended.add(payload.i); break;
           case '13': this.suspended.delete(payload.i); break;
-          default: break;
+          default: break;                               // codes we cannot act on in a browser
         }
       }
     }
@@ -597,21 +822,23 @@ class BehaviorRunner {
     return usable[usable.length - 1].i;
   }
 
+  // Call once per frame. `look` is the current look vector, so trigger 10 can see it move.
   update(now, look = null) {
     if (!this.started) this.start(now);
 
     if (look) {
-      const moved = Math.hypot(look[0] - this.lastLook[0], look[1] - this.lastLook[1]);
+      const dx = look[0] - this.lastLook[0], dy = look[1] - this.lastLook[1];
+      const moved = Math.hypot(dx, dy);
       for (const rule of this.rules) {
         const t10 = rule.t && rule.t['10'];
-        if (!t10 || moved <= (t10.v ?? 0)) continue;
+        if (!t10) continue;
+        if (moved <= (t10.v ?? 0)) continue;
         if (this.suspended.has(rule.c) || this.locked.has(rule.c)) continue;
         // Hold off if this category fired recently. The trigger compares consecutive frames, so a
         // steady drag crosses the 0.04 threshold on nearly every one of them and the rule fires
         // continuously — measured at 31 firings across a single slow drag, against the reference's
         // 11 closed frames out of 41. The data carries no cooldown of its own, so the floor used
-        // here is blink_ambient's own minimum interval (2.5s), the slowest cadence the data
-        // asks for anywhere.
+        // here is blink_ambient's own minimum interval (2.5s).
         const last = this.lastFired.get(rule.c);
         if (last !== undefined && now - last < LOOK_TRIGGER_COOLDOWN_MS) continue;
         if (!this.conditionsHold(rule)) continue;
@@ -630,6 +857,40 @@ class BehaviorRunner {
       if (!this.conditionsHold(rule)) continue;
       this.fire(rule, now);
     }
+  }
+
+  // Which rules could ever fire with the clips this build ships — useful for showing the user what is
+  // live rather than implying all 23 run.
+  //
+  // Only actions 0 (play a clip) and 1 (weighted pick among clips) name a clip. Actions 12 and 13
+  // (suspend/resume a category) also carry an `i`, but it is a CATEGORY name — scanning every action
+  // payload for any `.i` counted those as clips and reported 21 runnable rules against the 7 that
+  // actually run, which is the opposite of what this method is for.
+  //
+  // Conditions are evaluated too, against the sensors as currently fed, because a rule whose
+  // conditions can never hold is not runnable either. That makes the answer depend on sensor 15:
+  //
+  //   nothing fed:       init, rot, rot3d                                    (3)
+  //   sensor 15 = 0.9:   + blink_ambient, blink_look                         (5)
+  //   sensor 15 < 0.3:   + blink_ambient_s, blink_look_s instead of those two (5)
+  //
+  // So it is 5 at any one time, not the 7 this project used to claim: the four blink rules split into
+  // two mutually exclusive pairs either side of 0.3, and only one pair can hold.
+  runnableRules() {
+    const have = this.rt.data.animations;
+    return this.rules.filter((rule) => {
+      const names = [];
+      for (const a of rule.a || []) {
+        for (const [code, v] of Object.entries(a)) {
+          if (code !== '0' && code !== '1') continue;
+          if (v && typeof v.i === 'string') names.push(v.i);
+          if (v && Array.isArray(v.o)) for (const o of v.o) if (o.i) names.push(o.i);
+        }
+      }
+      if (!names.some((n) => have[n])) return false;
+      // A rule whose conditions can never hold is not runnable either.
+      return this.conditionsHold(rule);
+    });
   }
 }
 
@@ -653,7 +914,7 @@ br.setSensor(15, 0.9);
 
 const AMBIENT = ['idle', 'pup_mov_1', 'pup_mov_2', 'pup_scale'];
 
-// Populate the state selector, grouped by family so 36 entries stay readable.
+// Populate the state selector: all 36, in one sorted list.
 const stateSel = document.getElementById('state');
 for (const id of Object.keys(ANIM_DATA.states).sort()) {
   const opt = document.createElement('option');
@@ -709,6 +970,11 @@ function renderFired() {
 let look = [0, 0];
 function frame(now) {
   br.update(now, look);
+  // The module's draw() paints nothing behind the scene unless a background is passed, so the page
+  // clears. The old inlined copy cleared inside draw() itself, which is the one behavioural way the
+  // hand-maintained copy had drifted from lark.js.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(1, 0, 0, 1, -CROP.x, -CROP.y);
   rt.draw(ctx, now, { width: 400, height: 400 });
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -733,4 +999,5 @@ window.addEventListener('pointermove', (e) => {
 });
 // Leaving the window entirely relaxes the gaze back to centre.
 document.addEventListener('pointerleave', () => { look = [0, 0]; rt.setLook(0, 0); });
+
 </script>

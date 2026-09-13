@@ -209,20 +209,37 @@ export class BehaviorRunner {
     }
   }
 
-  // Which rules could ever fire with the clips this build ships — useful for showing the user
-  // what is live rather than implying all 23 run.
+  // Which rules could ever fire with the clips this build ships — useful for showing the user what is
+  // live rather than implying all 23 run.
+  //
+  // Only actions 0 (play a clip) and 1 (weighted pick among clips) name a clip. Actions 12 and 13
+  // (suspend/resume a category) also carry an `i`, but it is a CATEGORY name — scanning every action
+  // payload for any `.i` counted those as clips and reported 21 runnable rules against the 7 that
+  // actually run, which is the opposite of what this method is for.
+  //
+  // Conditions are evaluated too, against the sensors as currently fed, because a rule whose
+  // conditions can never hold is not runnable either. That makes the answer depend on sensor 15:
+  //
+  //   nothing fed:       init, rot, rot3d                                    (3)
+  //   sensor 15 = 0.9:   + blink_ambient, blink_look                         (5)
+  //   sensor 15 < 0.3:   + blink_ambient_s, blink_look_s instead of those two (5)
+  //
+  // So it is 5 at any one time, not the 7 this project used to claim: the four blink rules split into
+  // two mutually exclusive pairs either side of 0.3, and only one pair can hold.
   runnableRules() {
     const have = this.rt.data.animations;
     return this.rules.filter((rule) => {
       const names = [];
       for (const a of rule.a || []) {
-        for (const v of Object.values(a)) {
+        for (const [code, v] of Object.entries(a)) {
+          if (code !== '0' && code !== '1') continue;
           if (v && typeof v.i === 'string') names.push(v.i);
           if (v && Array.isArray(v.o)) for (const o of v.o) if (o.i) names.push(o.i);
         }
       }
-      const clips = names.filter((n) => have[n]);
-      return clips.length > 0;
+      if (!names.some((n) => have[n])) return false;
+      // A rule whose conditions can never hold is not runnable either.
+      return this.conditionsHold(rule);
     });
   }
 }
