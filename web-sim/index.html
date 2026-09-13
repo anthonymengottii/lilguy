@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LilGuy</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; background: #111; color: #eee; max-width: 480px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.2rem; }
+  .note { color: #888; font-size: .85rem; }
+  #eye { width: 240px; height: 240px; border-radius: 50%; background: #000; display: block; margin: 1rem auto; box-shadow: 0 0 0 4px #222, 0 0 30px rgba(0,0,0,.6); }
+  .row { display: flex; gap: .5rem; margin: .6rem 0; flex-wrap: wrap; align-items: center; justify-content: center; }
+  select, input[type=color] { background: #0c0c0c; color: #eee; border: 1px solid #333; border-radius: 6px; padding: .3rem; }
+  label { display: inline-flex; gap: .4rem; align-items: center; }
+</style>
+</head>
+<body>
+<h1>LilGuy</h1>
+<p class="note">Two eyes that watch the cursor, drift while idle, and blink on their own. Geometry,
+colours and timing were measured off the original renderer rather than eyeballed. Tap to startle it.</p>
+
+<canvas id="eye" width="240" height="240"></canvas>
+
+<div class="row">
+  <label>Eye color <input type="color" id="lgEyeColor" value="#65f4cd"></label>
+  <label>Pupil color <input type="color" id="lgPupilColor" value="#006a48"></label>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
