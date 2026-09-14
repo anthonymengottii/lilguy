@@ -53,10 +53,10 @@ const CURVES = {
   //
   // This file used to read it the other way, as a jump to the target, and that is what made the
   // pupil disappear from an eye that was still visibly open. `blink`'s pupil opacity lane is
-  // (150,v=1) -> (233,v=0) -> (300,v=1), and since the curve on the LATER keyframe governs the
-  // segment leading into it, target-jump drove opacity to 0 at t=151 and held it there until the
-  // t=300 ease brought it back. The eye's closed path does not peak until t=250, so the pupil went
-  // out roughly 100ms before the lid arrived and came back as the lid reopened.
+  // (150,v=1) -> (233,v=0) -> (300,v=1), so target-jump drove opacity to 0 as soon as the segment
+  // into t=233 began and held it there until the t=300 ease brought it back. The eye's closed path
+  // does not peak until t=250, so the pupil went out roughly 100ms before the lid arrived and came
+  // back as the lid reopened.
   //
   // The measurement that justified target-jump was not imprecise, it had the wrong sign. It argued
   // that source-hold left the closed frame at 24.2% of open area — 8762px against the ~8567px of
@@ -64,12 +64,18 @@ const CURVES = {
   // destination-out (see drawNode), so a pupil SUBTRACTS from total ink. Total area cannot detect
   // whether a pupil is present, in either direction, and that whole comparison measured nothing.
   //
-  // Scope of the correct reading, audited across the shipped data: there are exactly twelve `c:0`
-  // keyframes, all of them on `o` lanes on pup_l/pup_r. Eleven are the FIRST keyframe of their
-  // lane, where sampleLane returns early on `t <= keys[0].t` and never evaluates a curve. Only
-  // `blink`'s second keyframe (t=233, v=0) is a non-first one, and no non-opacity lane anywhere
-  // uses `c:0`. So this governs `blink` and nothing else: blink2..blink5 fade on c:24 and are
-  // unaffected either way.
+  // Scope, audited across the shipped data: every one of the twelve `c:0` keyframes sits on an `o`
+  // lane on pup_l/pup_r, and no non-opacity lane anywhere uses one. Under the earlier-keyframe
+  // attribution this file now uses, each governs the segment LEAVING it, and they all say the same
+  // thing in every blink clip — hold the pupil fully visible, then drop it at the next keyframe:
+  //
+  //     blink   t150->t233 holds 1     blink2  t150->t233 holds 1
+  //     blink3  t183->t233 holds 1     blink4  t283->t333 holds 1
+  //     blink5  t633->t683 holds 1     blink   t233->t300 holds 0
+  //
+  // That is what a step is for here: the pupil does not fade with the lid, it is there and then it
+  // is not. Under the old later-keyframe reading eleven of these twelve were dead — they were first
+  // keyframes, where sampleLane returns early and no curve is evaluated at all.
   0: () => 0,
   14: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out
   15: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out (path morphs)
@@ -275,8 +281,17 @@ function sampleLane(keys, t, original) {
     const a = keys[i], b = keys[i + 1];
     if (t < a.t || t > b.t) continue;
     if (b.t === a.t) return valueAt(b);
-    // The curve on the LATER keyframe governs the segment leading into it.
-    const u = curveFn(b.c)((t - a.t) / (b.t - a.t));
+    // The curve on the EARLIER keyframe governs the segment leaving it.
+    //
+    // This file read it the other way for a long time, and `blink` is where the two disagree loudly.
+    // Its lid lane is (0, rest) -> (250, closed) -> (783, rest): under later-attribution the reopen
+    // runs on c24, an ease-in-out that is barely moving for the first 150ms, and the eye stays shut
+    // for 480ms. Watching the reference for 42 seconds caught 15 blinks with closed phases of
+    // 150-300ms and a median of 240 — not one anywhere near 480, though `blink` is one of three
+    // equally weighted choices and should be a third of them. Under earlier-attribution the reopen
+    // runs on c15, the ease-out sitting on the closing keyframe, and the three clips come out at
+    // 280 / 160 / 200ms, all inside the observed range.
+    const u = curveFn(a.c)((t - a.t) / (b.t - a.t));
     const va = valueAt(a), vb = valueAt(b);
     if (typeof va === 'number' && typeof vb === 'number') return lerp(va, vb, u);
     if (Array.isArray(va) && Array.isArray(vb)) return morphPath(va, vb, u);

@@ -154,6 +154,12 @@
     dois pontos no array de 14 — as nove tentativas anteriores giravam o array achatado ou
     truncavam antes de girar, descartando justamente os dois pontos que importam.
     <br><br>
+    E a <b>duração</b> da piscada também. A curva de um segmento é a do keyframe de onde ele
+    <i>sai</i>, não a do keyframe aonde chega — lendo ao contrário, o clipe <code>blink</code>
+    reabria sob uma curva lenta e o olho ficava fechado 480ms. Cronometrando a original por 42s,
+    são 15 piscadas de 150 a 300ms, mediana 240, e nenhuma perto de 480 — embora <code>blink</code>
+    seja uma de três escolhas de peso igual. Com a leitura certa: 280, 160 e 200ms.
+    <br><br>
     A <b>distância entre os olhos</b> também bate: 151,5px em repouso contra 152 da original, nos
     36 estados. O valor de 164 que aparecia antes era artefato de medição: o canvas de então tinha
     372px de backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code>
