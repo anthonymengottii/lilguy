@@ -141,6 +141,13 @@
     canvas, limitada a 1 — quatro vezes mais ávida, então os olhos batiam no limite em meia tela e
     paravam ali.
     <br><br>
+    No eixo <b>vertical</b> os olhos achatam: 162 para 129px de altura olhando bem para cima ou para
+    baixo, e a distância entre eles abre olhando para baixo. Isso ficou errado por um tempo porque a
+    varredura de calibração só alcançava ±250px — a página da original põe o canvas a 300px do topo
+    de uma janela de 900, e abaixo dele não há espaço. Nessa faixa a altura mal se move (0,975 do
+    repouso), então a resposta saiu dez vezes fraca. Remedido com o canvas no meio de uma janela de
+    1400px, o erro por olho é de <b>4px</b>.
+    <br><br>
     <b>O que falta.</b> O deslocamento total ainda é menor que o da original (15px contra 24 na faixa
     medida): a resposta dela <i>acelera</i> perto da borda e uma translação é linear por construção.
   </div>
@@ -365,11 +372,44 @@ const TURN_GAP_2 = 0.1615;
 const TURN_GAIN = 1 / 0.554;
 const clampUnit = (v) => Math.max(-1, Math.min(1, v));
 
-// The vertical look shortens both eyes with no per-eye sign, and asymmetrically: measured as blobs
-// against the reference, looking up takes 162 to 158 and looking down to 153. TURN_LIFT_Y carries the
-// part that is the same either way, TURN_LIFT_BIAS the extra that only applies looking down.
-const TURN_LIFT_Y = 0.0247;
-const TURN_LIFT_BIAS = 0.0309;
+// THE VERTICAL LOOK. Separate from the turn: it has no per-eye sign — both eyes do the same thing —
+// and it is much stronger than an earlier fit suggested.
+//
+// That earlier fit was taken over a sweep of +-250px, because the reference's own demo page puts its
+// canvas 300px down a 900px viewport and there is no more room below it. 250px is a look of 0.278,
+// where the height has barely moved (0.975 of rest), so the fitted response came out about ten times
+// too weak and the eyes stayed almost flat when the pointer went high or low. Re-measured with the
+// canvas moved to the middle of a 1400px viewport, so the pointer can travel as far vertically as it
+// does horizontally:
+//
+//     our look[1]   -0.667  -0.444  -0.278   0   +0.278  +0.444  +0.667
+//     height ratio   0.796   0.926   0.975  1.0   0.985   0.944   0.815
+//     width  ratio   0.986   0.993   0.993  1.0   1.003   1.014   1.028
+//     gap    ratio   0.987   0.990   0.993  1.0   1.003   1.013   1.026
+//
+// So the eyes SQUASH vertically — to 0.8 of their height at the extremes, against the 0.975 the old
+// sweep saw — and at the same time widen slightly and, looking down, drift apart. Each channel is a
+// quadratic in |look[1]| with its own coefficient per direction; all fit within 2%.
+// The height pair is fitted against the RENDERED result, not against the reference's ratios directly.
+// Taking the ratios straight (-0.441 / -0.389) overshot by about a factor of two — 91px tall where the
+// reference measures 129 — because this factor multiplies the turn's own height law rather than
+// replacing it, and the eyes are already slightly shorter than rest before it applies. These values
+// are what the drawn heights actually match.
+const LIFT_H_UP = -0.2037;
+const LIFT_H_DOWN = -0.1667;
+const LIFT_W_UP = -0.0338;
+const LIFT_W_DOWN = 0.0632;
+// Scaled down from the raw ratios for the same reason as the height pair: measured on the drawn
+// result, the spacing moved 5px where the reference moves 1.5 looking up, and 10 where it moves 4.5
+// looking down.
+const LIFT_GAP_UP = -0.0104;
+const LIFT_GAP_DOWN = 0.027;
+
+// The look value the vertical fit treats as full deflection. Not the same as the turn's 0.554: the
+// pair is fully turned horizontally by then, while the vertical squash is still deepening at 0.667,
+// which is as far as the sweep could reach. Sharing one scale between the axes would saturate the
+// vertical response at a third of its range.
+const LIFT_LOOK_MAX = 0.667;
 
 // rot3d_2 drives the turn at ang = +-0.17 radians, which is the reference's own full-turn amplitude
 // for a single eye. Dividing by it puts `ang` and the look vector on one scale, so applyTurn can be
@@ -665,7 +705,7 @@ class LarkRuntime {
   // split already turns that translation into an apparent narrowing of very nearly the right size, so
   // scaling on top double-counts. On the t3d lane nothing translates — rot3d_2 turns a group in
   // place — so there the width law is the only thing that can narrow the eye at all.
-  applyTurn(ctx, box, s, piv, lift = 1, scaleWidth = true) {
+  applyTurn(ctx, box, s, piv, lift = 1, scaleWidth = true, liftW = 1) {
     if (!s && lift === 1) return;
     const u = clampUnit(s);
     const p = piv || [0.5, 0.5];
@@ -689,7 +729,7 @@ class LarkRuntime {
 
     // Clamped so that editing a coefficient can never reproduce the collapse a per-node scale once
     // caused (6a's drawn area fell 21363 -> 2400). The fitted range bottoms out at 0.646.
-    const sx = Math.max(0.5, w);
+    const sx = Math.max(0.5, w * liftW);
     const sy = Math.max(0.5, h * lift);
     ctx.translate(cx, py);
     ctx.scale(sx, sy);
@@ -783,9 +823,17 @@ class LarkRuntime {
         // 3.94% to 0.89%. One constant drives both, so a future change to one cannot silently leave
         // the slide and the turn disagreeing.
         const away = clampUnit(side * look[0] * TURN_GAIN);
-        // The vertical look shortens both eyes with no per-eye sign, and more when looking down.
-        const ly = clampUnit(look[1] * TURN_GAIN);
-        const lift = 1 - TURN_LIFT_Y * Math.abs(ly) - TURN_LIFT_BIAS * Math.max(0, -ly);
+        // The vertical look: both eyes squash the same way, no per-eye sign. Fitted against the RAW
+        // look rather than the turn's deflection scale, because the two axes reach their extremes at
+        // different look values — the pair is fully turned by about 0.554 horizontally, while the
+        // vertical response is still growing at 0.667. Sharing TURN_GAIN here would saturate the
+        // vertical squash at a third of the way up.
+        const ly = Math.max(-LIFT_LOOK_MAX, Math.min(LIFT_LOOK_MAX, look[1])) / LIFT_LOOK_MAX;
+        const lm = ly * ly;
+        const down = ly > 0;
+        const lift = 1 + (down ? LIFT_H_DOWN : LIFT_H_UP) * lm;
+        const liftW = 1 + (down ? LIFT_W_DOWN : LIFT_W_UP) * lm;
+        const liftGap = 1 + (down ? LIFT_GAP_DOWN : LIFT_GAP_UP) * lm;
 
         // CONVERGENCE — the depth cue. As the pair turns, the distance between the eye centres
         // contracts: 152 at rest down to 126.5 at full deflection, measured by sweeping the
@@ -801,11 +849,14 @@ class LarkRuntime {
         // supplied the width change — but that "width change" was columnScan clipping a deflected eye
         // at the canvas midline, not geometry. Measured as separate blobs the widths sat frozen at
         // 143 through the whole sweep while the reference's receding eye went to 99.
-        this.applyTurn(ctx, box, away, [0.5, 1], lift, true);
+        this.applyTurn(ctx, box, away, [0.5, 1], lift, true, liftW);
 
+        // The pair's spacing: the horizontal turn pulls it in, the vertical look nudges it out when
+        // looking down and in when looking up. Both act on the same translate.
         const mag = Math.abs(clampUnit(look[0] * TURN_GAIN));
         const pull = TURN_GAP_1 * mag + TURN_GAP_2 * mag * mag;
-        ctx.translate((this.pairCentreX() - (box.x + box.w / 2)) * pull, 0);
+        const offset = box.x + box.w / 2 - this.pairCentreX();
+        ctx.translate(-offset * pull + offset * (liftGap - 1), 0);
       }
     }
 

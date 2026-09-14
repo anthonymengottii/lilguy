@@ -141,6 +141,13 @@
     canvas, limitada a 1 — quatro vezes mais ávida, então os olhos batiam no limite em meia tela e
     paravam ali.
     <br><br>
+    No eixo <b>vertical</b> os olhos achatam: 162 para 129px de altura olhando bem para cima ou para
+    baixo, e a distância entre eles abre olhando para baixo. Isso ficou errado por um tempo porque a
+    varredura de calibração só alcançava ±250px — a página da original põe o canvas a 300px do topo
+    de uma janela de 900, e abaixo dele não há espaço. Nessa faixa a altura mal se move (0,975 do
+    repouso), então a resposta saiu dez vezes fraca. Remedido com o canvas no meio de uma janela de
+    1400px, o erro por olho é de <b>4px</b>.
+    <br><br>
     <b>O que falta.</b> O deslocamento total ainda é menor que o da original (15px contra 24 na faixa
     medida): a resposta dela <i>acelera</i> perto da borda e uma translação é linear por construção.
   </div>

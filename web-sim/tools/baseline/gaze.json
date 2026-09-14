@@ -90,85 +90,85 @@
         0,
         0.5
       ],
-      "gap": 151.5,
+      "gap": 152,
       "centreL": 123.5,
-      "centreR": 275,
+      "centreR": 275.5,
       "widthL": 144,
-      "widthR": 143,
+      "widthR": 144,
       "heightL": 161,
       "heightR": 161,
       "merged": false,
       "drawingX0": 52,
-      "drawingX1": 346,
-      "area": 35981
+      "drawingX1": 347,
+      "area": 36058
     },
     {
       "look": [
         0,
         1
       ],
-      "gap": 151.5,
+      "gap": 152,
       "centreL": 123.5,
-      "centreR": 275,
+      "centreR": 275.5,
       "widthL": 144,
-      "widthR": 143,
-      "heightL": 160,
-      "heightR": 160,
+      "widthR": 144,
+      "heightL": 159,
+      "heightR": 159,
       "merged": false,
       "drawingX0": 52,
-      "drawingX1": 346,
-      "area": 35802
+      "drawingX1": 347,
+      "area": 35727
     },
     {
       "look": [
         0,
         -1
       ],
-      "gap": 151.5,
-      "centreL": 123.5,
+      "gap": 151,
+      "centreL": 124,
       "centreR": 275,
-      "widthL": 144,
+      "widthL": 143,
       "widthR": 143,
       "heightL": 158,
       "heightR": 158,
       "merged": false,
-      "drawingX0": 52,
+      "drawingX0": 53,
       "drawingX1": 346,
-      "area": 35355
+      "area": 35225
     },
     {
       "look": [
         1,
         1
       ],
-      "gap": 149.5,
-      "centreL": 137.5,
+      "gap": 150,
+      "centreL": 137,
       "centreR": 287,
-      "widthL": 150,
+      "widthL": 151,
       "widthR": 129,
-      "heightL": 167,
-      "heightR": 154,
+      "heightL": 166,
+      "heightR": 153,
       "merged": false,
-      "drawingX0": 63,
+      "drawingX0": 62,
       "drawingX1": 351,
-      "area": 34964
+      "area": 34891
     },
     {
       "look": [
         -1,
         -1
       ],
-      "gap": 149.5,
+      "gap": 149,
       "centreL": 112,
-      "centreR": 261.5,
+      "centreR": 261,
       "widthL": 129,
-      "widthR": 150,
-      "heightL": 153,
+      "widthR": 149,
+      "heightL": 152,
       "heightR": 165,
       "merged": false,
       "drawingX0": 48,
-      "drawingX1": 336,
-      "area": 34549
+      "drawingX1": 335,
+      "area": 34398
     }
   ],
   "ref": [
@@ -187,7 +187,7 @@
       "merged": false,
       "drawingX0": 52,
       "drawingX1": 347,
-      "area": 36315
+      "area": 36316
     },
     {
       "look": [
@@ -204,24 +204,24 @@
       "merged": false,
       "drawingX0": 58,
       "drawingX1": 352,
-      "area": 36111
+      "area": 36079
     },
     {
       "look": [
         1,
         0
       ],
-      "gap": 149.5,
+      "gap": 150,
       "centreL": 141.5,
-      "centreR": 291,
+      "centreR": 291.5,
       "widthL": 150,
-      "widthR": 129,
+      "widthR": 130,
       "heightL": 168,
-      "heightR": 155,
+      "heightR": 156,
       "merged": false,
       "drawingX0": 67,
-      "drawingX1": 355,
-      "area": 35371
+      "drawingX1": 356,
+      "area": 35539
     },
     {
       "look": [
@@ -238,24 +238,24 @@
       "merged": false,
       "drawingX0": 47,
       "drawingX1": 340,
-      "area": 36102
+      "area": 36109
     },
     {
       "look": [
         -1,
         0
       ],
-      "gap": 149.5,
-      "centreL": 108,
+      "gap": 150,
+      "centreL": 107.5,
       "centreR": 257.5,
-      "widthL": 129,
+      "widthL": 130,
       "widthR": 150,
       "heightL": 156,
       "heightR": 168,
       "merged": false,
-      "drawingX0": 44,
+      "drawingX0": 43,
       "drawingX1": 332,
-      "area": 35540
+      "area": 35552
     },
     {
       "look": [
@@ -272,24 +272,24 @@
       "merged": false,
       "drawingX0": 52,
       "drawingX1": 347,
-      "area": 36320
+      "area": 36329
     },
     {
       "look": [
         0,
         1
       ],
-      "gap": 153,
+      "gap": 152.5,
       "centreL": 123,
-      "centreR": 276,
-      "widthL": 145,
-      "widthR": 145,
-      "heightL": 156,
-      "heightR": 158,
+      "centreR": 275.5,
+      "widthL": 143,
+      "widthR": 146,
+      "heightL": 160,
+      "heightR": 156,
       "merged": false,
-      "drawingX0": 51,
+      "drawingX0": 52,
       "drawingX1": 348,
-      "area": 35345
+      "area": 35622
     },
     {
       "look": [
@@ -301,46 +301,46 @@
       "centreR": 274.5,
       "widthL": 143,
       "widthR": 142,
-      "heightL": 153,
-      "heightR": 152,
+      "heightL": 155,
+      "heightR": 155,
       "merged": false,
       "drawingX0": 53,
       "drawingX1": 345,
-      "area": 34122
+      "area": 34508
     },
     {
       "look": [
         1,
         1
       ],
-      "gap": 151,
+      "gap": 151.5,
       "centreL": 141,
-      "centreR": 292,
+      "centreR": 292.5,
       "widthL": 151,
-      "widthR": 131,
-      "heightL": 166,
-      "heightR": 155,
+      "widthR": 132,
+      "heightL": 160,
+      "heightR": 152,
       "merged": false,
       "drawingX0": 66,
-      "drawingX1": 357,
-      "area": 35214
+      "drawingX1": 358,
+      "area": 34209
     },
     {
       "look": [
         -1,
         -1
       ],
-      "gap": 149.5,
-      "centreL": 108,
-      "centreR": 257.5,
-      "widthL": 129,
-      "widthR": 150,
-      "heightL": 154,
-      "heightR": 167,
+      "gap": 148.5,
+      "centreL": 108.5,
+      "centreR": 257,
+      "widthL": 128,
+      "widthR": 149,
+      "heightL": 147,
+      "heightR": 159,
       "merged": false,
-      "drawingX0": 44,
-      "drawingX1": 332,
-      "area": 35149
+      "drawingX0": 45,
+      "drawingX1": 331,
+      "area": 33326
     }
   ],
   "cssRatio": 1
