@@ -48,11 +48,15 @@
     border: 1px solid var(--line);
   }
   /* 240x240 round: the Waveshare ESP32-S3-Touch-LCD-1.28 this project ships on. The backing store is
-     the panel's real resolution and the CSS box is a whole multiple of it, so the preview is the
-     hardware's own pixels magnified rather than resampled. */
+     the panel's real resolution, so the drawing is exactly what the hardware renders — the browser
+     just smooths it on the way up to the display size.
+     `image-rendering: pixelated` was set here at first, to show the panel's own pixels as hard
+     blocks. It is honest about the resolution and ugly on a desktop screen, and the honesty is
+     already carried by the backing store being 240: nothing about the drawing changes when the
+     upscale is smoothed, only how the magnification is filtered. */
   canvas {
     width: 100%; max-width: 360px; height: auto; aspect-ratio: 1; display: block;
-    touch-action: none; border-radius: 50%; image-rendering: pixelated;
+    touch-action: none; border-radius: 50%;
   }
   .panel {
     margin-top: 1.1rem;
@@ -118,7 +122,8 @@
   <div class="warn">
     <b>No display de verdade.</b> O canvas é 240×240 com recorte circular — a Waveshare
     ESP32-S3-Touch-LCD-1.28 (GC9A01) em que o ocellus roda, no tamanho e no formato reais. Antes era
-    um retângulo de 372×304, que dava ao desenho cantos que o painel não tem. A escala do espaço de
+    um retângulo de 372×304, que dava ao desenho cantos que o painel não tem. O que aparece aqui é
+    exatamente o que o hardware desenha; ampliar para caber na tela é só do navegador. A escala do espaço de
     autoria para o disco é 0,65: medindo os 36 estados em sete olhares comuns e quatro extremos,
     0,65 é a maior escala que nunca encosta na máscara numa pose que alguém vai segurar, e ainda é
     11% maior que a escala que não corta nada em lugar nenhum. Cada olho fica com 94×105px.
