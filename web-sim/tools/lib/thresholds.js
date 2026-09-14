@@ -64,3 +64,11 @@ export const HEIGHT_TOLERANCE = 9;
 // gave 4.07% and 9.33% for the same build. So this gates the failure mode that matters (a spread near
 // zero, meaning the turn stopped working) and deliberately does not police the upper end.
 export const AREA_SPREAD_MIN = 0.02;
+
+// How long the drawing may go on missing a pupil's worth of ink after the lid has reopened.
+//
+// The reference's figure is zero: across 900 frames and 27 seconds it never once shows a lid more
+// than 90% open with the pupil gone. Ours reached 180ms in blink4 and blink5 while the pupils' `o`
+// lane was honoured as alpha — that lane's timings run past the lid's, so read as alpha it must
+// leave a bare eye. 40ms is two frames of slack for sampling, not a licence to drift.
+export const PUPIL_LAG_MAX_MS = 40;

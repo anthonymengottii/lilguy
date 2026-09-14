@@ -160,6 +160,14 @@
     são 15 piscadas de 150 a 300ms, mediana 240, e nenhuma perto de 480 — embora <code>blink</code>
     seja uma de três escolhas de peso igual. Com a leitura certa: 280, 160 e 200ms.
     <br><br>
+    A lane <code>o</code> das pupilas <b>não é opacidade</b>. Tratada como alfa, ela deixava o olho
+    já aberto sem pupila por até 180ms — pior no <code>blink4</code> e no <code>blink5</code>, cujos
+    tempos de opacidade correm além dos da pálpebra. Na original isso nunca acontece: em 900 quadros
+    e 27s, nenhum com a pálpebra mais de 90% aberta e a pupila ausente. Durante a piscada a pupila
+    dela segura 26 a 42% da tinta do olho e só some quando a pálpebra passa de ~27% fechada, que é
+    exatamente o que o recorte pela pálpebra produz sozinho. Ignorando a lane, o atraso vai a zero
+    nos cinco clipes e a pupila continua sumindo no quadro fechado.
+    <br><br>
     A <b>distância entre os olhos</b> também bate: 151,5px em repouso contra 152 da original, nos
     36 estados. O valor de 164 que aparecia antes era artefato de medição: o canvas de então tinha
     372px de backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code>
@@ -276,31 +284,16 @@
 const CURVES = {
   // Step: the segment HOLDS ITS SOURCE value and only changes when the later keyframe is reached.
   //
-  // This file used to read it the other way, as a jump to the target, and that is what made the
-  // pupil disappear from an eye that was still visibly open. `blink`'s pupil opacity lane is
-  // (150,v=1) -> (233,v=0) -> (300,v=1), so target-jump drove opacity to 0 as soon as the segment
-  // into t=233 began and held it there until the t=300 ease brought it back. The eye's closed path
-  // does not peak until t=250, so the pupil went out roughly 100ms before the lid arrived and came
-  // back as the lid reopened.
+  // Every one of the twelve `c:0` keyframes in the shipped data sits on an `o` lane on pup_l/pup_r,
+  // and channelsFor now ignores those lanes outright — the reference does not treat them as alpha.
+  // So this curve currently governs nothing that renders, and the reading is kept because it is the
+  // one the data supports: a step that holds until the next keyframe, not one that jumps ahead.
   //
-  // The measurement that justified target-jump was not imprecise, it had the wrong sign. It argued
-  // that source-hold left the closed frame at 24.2% of open area — 8762px against the ~8567px of
-  // two pupils — and concluded the pupils never left. But `c: "000000"` is a HOLE punched with
-  // destination-out (see drawNode), so a pupil SUBTRACTS from total ink. Total area cannot detect
-  // whether a pupil is present, in either direction, and that whole comparison measured nothing.
-  //
-  // Scope, audited across the shipped data: every one of the twelve `c:0` keyframes sits on an `o`
-  // lane on pup_l/pup_r, and no non-opacity lane anywhere uses one. Under the earlier-keyframe
-  // attribution this file now uses, each governs the segment LEAVING it, and they all say the same
-  // thing in every blink clip — hold the pupil fully visible, then drop it at the next keyframe:
-  //
-  //     blink   t150->t233 holds 1     blink2  t150->t233 holds 1
-  //     blink3  t183->t233 holds 1     blink4  t283->t333 holds 1
-  //     blink5  t633->t683 holds 1     blink   t233->t300 holds 0
-  //
-  // That is what a step is for here: the pupil does not fade with the lid, it is there and then it
-  // is not. Under the old later-keyframe reading eleven of these twelve were dead — they were first
-  // keyframes, where sampleLane returns early and no curve is evaluated at all.
+  // It was read as a jump to the target for a long time, on the strength of a measurement that had
+  // the wrong sign rather than poor precision. That measurement argued source-hold left the closed
+  // frame at 24.2% of open area — 8762px against the ~8567px of two pupils — and concluded the
+  // pupils never left. But `c: "000000"` is a HOLE punched with destination-out (see drawNode), so a
+  // pupil SUBTRACTS from total ink: the comparison could not detect a pupil in either direction.
   0: () => 0,
   14: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out
   15: (t) => 1 - Math.pow(1 - t, 3),                            // ease-out (path morphs)
@@ -317,6 +310,9 @@ const lerp = (a, b, u) => a + (b - a) * u;
 
 // A node whose colour is exactly this is punched OUT of its group rather than filled. See drawNode.
 const HOLE_COLOUR = '000000';
+
+// The pupils, whose `o` lane is ignored — see channelsFor for the measurement that says why.
+const PUPIL_NODE = /^pup_/;
 
 // How much of a node's own box the look lane may move it, per axis, on top of that node's `ll`.
 // Measured off the reference rather than guessed — see the note in drawNode.
@@ -707,6 +703,22 @@ class LarkRuntime {
         const head = lanes[i], keys = lanes[i + 1];
         if (!head || head.object !== name) continue;
         const orig = this.originalFor(name, head.keypath);
+        // The pupils' `o` lane is NOT literal alpha, and honouring it as alpha is what left an open
+        // eye with no pupil in it.
+        //
+        // Measured on the reference over 900 frames and 27 seconds: not once does it show a lid more
+        // than 90% open with the pupil under half its resting size. Through a blink the pupil holds
+        // 26-42% of the eye's ink and only disappears once the lid is under ~27% open — which is
+        // precisely what clipping a fixed pupil to a closing lid produces, and nothing like an alpha
+        // ramp. The lane's own timings say the same thing: in blink5 it holds 0 until t=1033 while
+        // the lid is fully back by ~1020, so read as alpha it must show a bare eye.
+        //
+        // Dropping it takes the "open lid, missing pupil" window from 180ms to 0 across all five
+        // blink clips, and the pupil still vanishes at each closed frame — 0% of ink — because the
+        // lid clip alone removes it. The lane presumably drives something the web build does not
+        // render; whatever it is, alpha is not it.
+        if (head.keypath === 'o' && PUPIL_NODE.test(name)) continue;
+
         const v = sampleLane(keys, t, orig);
         if (head.keypath === 't' && Array.isArray(v) && Array.isArray(out.t)) {
           out.t = [ (out.t[0] || 0) + (v[0] || 0),

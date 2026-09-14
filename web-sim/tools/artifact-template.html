@@ -160,6 +160,14 @@
     são 15 piscadas de 150 a 300ms, mediana 240, e nenhuma perto de 480 — embora <code>blink</code>
     seja uma de três escolhas de peso igual. Com a leitura certa: 280, 160 e 200ms.
     <br><br>
+    A lane <code>o</code> das pupilas <b>não é opacidade</b>. Tratada como alfa, ela deixava o olho
+    já aberto sem pupila por até 180ms — pior no <code>blink4</code> e no <code>blink5</code>, cujos
+    tempos de opacidade correm além dos da pálpebra. Na original isso nunca acontece: em 900 quadros
+    e 27s, nenhum com a pálpebra mais de 90% aberta e a pupila ausente. Durante a piscada a pupila
+    dela segura 26 a 42% da tinta do olho e só some quando a pálpebra passa de ~27% fechada, que é
+    exatamente o que o recorte pela pálpebra produz sozinho. Ignorando a lane, o atraso vai a zero
+    nos cinco clipes e a pupila continua sumindo no quadro fechado.
+    <br><br>
     A <b>distância entre os olhos</b> também bate: 151,5px em repouso contra 152 da original, nos
     36 estados. O valor de 164 que aparecia antes era artefato de medição: o canvas de então tinha
     372px de backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code>

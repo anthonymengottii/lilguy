@@ -20,7 +20,7 @@ import { inkMask, columnScan, inkArea, bbox } from '../lib/measure.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASELINE = path.join(HERE, '..', 'baseline', 'blink.json');
 
-import { RIBBON_MEAN_RANGE, RIBBON_SD_MAX } from '../lib/thresholds.js';
+import { RIBBON_MEAN_RANGE, RIBBON_SD_MAX, PUPIL_LAG_MAX_MS } from '../lib/thresholds.js';
 
 // `blink` holds its closed pose around t=250: the p lane's replacement keyframe sits there, and the
 // opacity lane runs (150, v=1) -> (233, v=0) -> (300, v=1), so the pupil is gone across that window.
@@ -102,6 +102,60 @@ async function main() {
       return s.meanThickness >= RIBBON_MEAN_RANGE[0] && s.meanThickness <= RIBBON_MEAN_RANGE[1] && s.colSd <= RIBBON_SD_MAX;
     });
     console.log(`\nverdict: ${ok ? 'PASS' : 'FAIL'} (want mean ${RIBBON_MEAN_RANGE.join('-')}, sd <= ${RIBBON_SD_MAX})`);
+  }
+
+  // The pupil must never be missing from an open eye. Measured on the reference across 900 frames
+  // and 27 seconds, that never happens once: through a blink its pupil holds 26-42% of the eye's ink
+  // and only goes as the lid drops under ~27% open. Ours used to leave a bare open eye for up to
+  // 180ms after a blink, worst in blink4 and blink5, because the pupils' `o` lane was being honoured
+  // as literal alpha and its timings run past the lid's.
+  {
+    const { browser: b2, context: c2 } = await launch();   // the main browser closed above
+    try {
+      const sim = await openSim(c2, { state: '1b' });
+      // Measure the PUPIL itself, not total ink. Total ink also falls while the lid is still partly
+      // shut, so comparing it conflates "the eye is small" with "the pupil is missing" — which read
+      // as a 60ms lag in `blink` where the pupil is in fact present the whole way.
+      //
+      // State 1b gives the pupils their own colour (#106E54 against the eye's #6FF5D0), so they can
+      // be counted directly.
+      const shot = async (clip, t) => {
+        await sim.clear();
+        await sim.play(clip, 0, 'blink');
+        await sim.render(t, [0, 0]);
+        const mask = inkMask(await sim.capture());
+        const pupil = await sim.page.evaluate(() => {
+          const c = document.querySelector('#stage');
+          const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
+          let n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] <= 16) continue;
+            const q = (d[i] - 0x10) ** 2 + (d[i + 1] - 0x6e) ** 2 + (d[i + 2] - 0x54) ** 2;
+            if (q < 3000) n++;
+          }
+          return n;
+        });
+        return { h: columnScan(mask, 'l').height, pupil };
+      };
+      const DUR = { blink: 783, blink2: 883, blink3: 1017, blink4: 1567, blink5: 2067 };
+      let worst = 0, worstClip = null;
+      for (const [clip, dur] of Object.entries(DUR)) {
+        const open = await shot(clip, 0);
+        let lag = 0, seenShut = false;
+        for (let t = 0; t <= dur; t += 20) {
+          const v = await shot(clip, t);
+          if (v.h < open.h * 0.6) seenShut = true;
+          // A lid most of the way open with the pupil still mostly gone.
+          else if (seenShut && v.h > open.h * 0.9 && v.pupil < open.pupil * 0.5) lag += 20;
+        }
+        if (lag > worst) { worst = lag; worstClip = clip; }
+      }
+      out.pupilLagMs = worst;
+      console.log(`\npupil lag after the lid reopens: ${worst}ms${worstClip ? ` (worst in ${worstClip})` : ''}` +
+        `  -> ${worst <= PUPIL_LAG_MAX_MS ? 'PASS' : 'FAIL'} (reference shows 0ms in 900 frames)`);
+    } finally {
+      await b2.close();
+    }
   }
 
   if (write) {
