@@ -161,8 +161,17 @@
     repouso), então a resposta saiu dez vezes fraca. Remedido com o canvas no meio de uma janela de
     1400px, o erro por olho é de <b>4px</b>.
     <br><br>
+    As <b>pupilas</b> agora derivam nos dois eixos. Os três clipes de ambiente movem as pupilas ao
+    mesmo tempo — <code>pup_mov_1</code> 5px na vertical, <code>pup_mov_2</code> ±3px na horizontal,
+    ambos na mesma lane <code>t</code> dos mesmos nós — e o runtime deixava o último sobrescrever o
+    outro, então só a horizontal chegava à tela. Todo clipe do dado declara <code>blend: "a"</code>;
+    agora a translação soma. Deriva vertical da pupila: <b>5,2px</b> contra os 8 da original.
+    <br><br>
     <b>O que falta.</b> O deslocamento total ainda é menor que o da original (15px contra 24 na faixa
     medida): a resposta dela <i>acelera</i> perto da borda e uma translação é linear por construção.
+    E a pupila dela ainda vagueia um pouco mais na vertical — os clipes de ambiente entregam
+    exatamente os 5px que o dado pede, medidos um a um, então o resto vem de algo que este build não
+    tem.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele

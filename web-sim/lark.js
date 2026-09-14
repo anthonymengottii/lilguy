@@ -426,6 +426,18 @@ export class LarkRuntime {
   }
 
   // Collect every lane value that applies to one object at time `now`, from all running clips.
+  // Collect every lane value that applies to one object at `now`, across all running clips.
+  //
+  // Translation ADDS across clips; everything else takes the last writer. Every clip in the data
+  // declares `blend: "a"`, and for `t` that is load-bearing: pup_mov_1 nudges the pupils 5px down and
+  // pup_mov_2 slides them +-3px sideways, both on `t`, on the same two nodes, looping forever. Under
+  // last-writer-wins pup_mov_2 erased pup_mov_1 outright, so the pupils only ever drifted horizontally
+  // and the eyes read as less alive than the reference's. Measured against it, the reference's pupil
+  // wanders 5-10px vertically inside its eye while ours sat at a near-constant 4.
+  //
+  // The other keypaths stay last-writer. `p` and `s` are absolute shapes rather than offsets, and
+  // summing them would double a scale or add two outlines together; `o` multiplies at the draw site
+  // already. Only `t` is an offset that composes.
   channelsFor(name, now) {
     const out = {};
     for (const inst of this.active) {
@@ -436,7 +448,14 @@ export class LarkRuntime {
         const head = lanes[i], keys = lanes[i + 1];
         if (!head || head.object !== name) continue;
         const orig = this.originalFor(name, head.keypath);
-        out[head.keypath] = sampleLane(keys, t, orig);
+        const v = sampleLane(keys, t, orig);
+        if (head.keypath === 't' && Array.isArray(v) && Array.isArray(out.t)) {
+          out.t = [ (out.t[0] || 0) + (v[0] || 0),
+                    (out.t[1] || 0) + (v[1] || 0),
+                    (out.t[2] || 0) + (v[2] || 0) ];
+        } else {
+          out[head.keypath] = v;
+        }
       }
     }
     return out;

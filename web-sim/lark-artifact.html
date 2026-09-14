@@ -161,8 +161,17 @@
     repouso), então a resposta saiu dez vezes fraca. Remedido com o canvas no meio de uma janela de
     1400px, o erro por olho é de <b>4px</b>.
     <br><br>
+    As <b>pupilas</b> agora derivam nos dois eixos. Os três clipes de ambiente movem as pupilas ao
+    mesmo tempo — <code>pup_mov_1</code> 5px na vertical, <code>pup_mov_2</code> ±3px na horizontal,
+    ambos na mesma lane <code>t</code> dos mesmos nós — e o runtime deixava o último sobrescrever o
+    outro, então só a horizontal chegava à tela. Todo clipe do dado declara <code>blend: "a"</code>;
+    agora a translação soma. Deriva vertical da pupila: <b>5,2px</b> contra os 8 da original.
+    <br><br>
     <b>O que falta.</b> O deslocamento total ainda é menor que o da original (15px contra 24 na faixa
     medida): a resposta dela <i>acelera</i> perto da borda e uma translação é linear por construção.
+    E a pupila dela ainda vagueia um pouco mais na vertical — os clipes de ambiente entregam
+    exatamente os 5px que o dado pede, medidos um a um, então o resto vem de algo que este build não
+    tem.
   </div>
 
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
@@ -609,6 +618,18 @@ class LarkRuntime {
   }
 
   // Collect every lane value that applies to one object at time `now`, from all running clips.
+  // Collect every lane value that applies to one object at `now`, across all running clips.
+  //
+  // Translation ADDS across clips; everything else takes the last writer. Every clip in the data
+  // declares `blend: "a"`, and for `t` that is load-bearing: pup_mov_1 nudges the pupils 5px down and
+  // pup_mov_2 slides them +-3px sideways, both on `t`, on the same two nodes, looping forever. Under
+  // last-writer-wins pup_mov_2 erased pup_mov_1 outright, so the pupils only ever drifted horizontally
+  // and the eyes read as less alive than the reference's. Measured against it, the reference's pupil
+  // wanders 5-10px vertically inside its eye while ours sat at a near-constant 4.
+  //
+  // The other keypaths stay last-writer. `p` and `s` are absolute shapes rather than offsets, and
+  // summing them would double a scale or add two outlines together; `o` multiplies at the draw site
+  // already. Only `t` is an offset that composes.
   channelsFor(name, now) {
     const out = {};
     for (const inst of this.active) {
@@ -619,7 +640,14 @@ class LarkRuntime {
         const head = lanes[i], keys = lanes[i + 1];
         if (!head || head.object !== name) continue;
         const orig = this.originalFor(name, head.keypath);
-        out[head.keypath] = sampleLane(keys, t, orig);
+        const v = sampleLane(keys, t, orig);
+        if (head.keypath === 't' && Array.isArray(v) && Array.isArray(out.t)) {
+          out.t = [ (out.t[0] || 0) + (v[0] || 0),
+                    (out.t[1] || 0) + (v[1] || 0),
+                    (out.t[2] || 0) + (v[2] || 0) ];
+        } else {
+          out[head.keypath] = v;
+        }
       }
     }
     return out;
