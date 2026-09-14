@@ -1,12 +1,12 @@
 {
   "1a": {
-    "iou": 0.9849,
-    "rawIou": 0.9552,
+    "iou": 0.9861,
+    "rawIou": 0.9672,
     "offset": {
       "dx": 0,
       "dy": 2
     },
-    "floor": 0.9649,
+    "floor": 0.9661,
     "simBBox": {
       "x": 52,
       "y": 109,
@@ -15,12 +15,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 111,
+      "y": 110,
       "w": 296,
       "h": 162
     },
     "simArea": 35740,
-    "refArea": 35915,
+    "refArea": 35932,
     "simGap": {
       "gap": 151.5,
       "centreL": 123.5,
@@ -47,13 +47,13 @@
     }
   },
   "1b": {
-    "iou": 0.9898,
-    "rawIou": 0.9302,
+    "iou": 0.9941,
+    "rawIou": 0.9715,
     "offset": {
       "dx": 0,
-      "dy": 5
+      "dy": 2
     },
-    "floor": 0.9698,
+    "floor": 0.9741,
     "simBBox": {
       "x": 52,
       "y": 109,
@@ -62,12 +62,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 113,
+      "y": 110,
       "w": 296,
       "h": 162
     },
     "simArea": 36149,
-    "refArea": 36318,
+    "refArea": 36324,
     "simGap": {
       "gap": 151.5,
       "centreL": 123.5,
@@ -94,13 +94,13 @@
     }
   },
   "1c": {
-    "iou": 0.9914,
-    "rawIou": 0.9254,
+    "iou": 0.9918,
+    "rawIou": 0.9594,
     "offset": {
       "dx": 0,
-      "dy": 5
+      "dy": 3
     },
-    "floor": 0.9714,
+    "floor": 0.9718,
     "simBBox": {
       "x": 52,
       "y": 109,
@@ -109,12 +109,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 113,
+      "y": 111,
       "w": 296,
       "h": 162
     },
     "simArea": 36149,
-    "refArea": 36265,
+    "refArea": 36278,
     "simGap": {
       "gap": 151.5,
       "centreL": 123.5,
@@ -141,13 +141,13 @@
     }
   },
   "1d": {
-    "iou": 0.9599,
-    "rawIou": 0.9192,
+    "iou": 0.9614,
+    "rawIou": 0.9288,
     "offset": {
       "dx": 0,
-      "dy": 3
+      "dy": 2
     },
-    "floor": 0.9399,
+    "floor": 0.9414,
     "simBBox": {
       "x": 52,
       "y": 109,
@@ -161,7 +161,7 @@
       "h": 162
     },
     "simArea": 30455,
-    "refArea": 30648,
+    "refArea": 30653,
     "simGap": {
       "gap": 151.5,
       "centreL": 123.5,
@@ -188,13 +188,13 @@
     }
   },
   "1e": {
-    "iou": 0.9092,
-    "rawIou": 0.8862,
+    "iou": 0.913,
+    "rawIou": 0.8811,
     "offset": {
       "dx": 0,
       "dy": -2
     },
-    "floor": 0.8892,
+    "floor": 0.893,
     "simBBox": {
       "x": 52,
       "y": 109,
@@ -208,7 +208,7 @@
       "h": 159
     },
     "simArea": 21236,
-    "refArea": 21604,
+    "refArea": 21519,
     "simGap": {
       "gap": 151.5,
       "centreL": 123.5,
@@ -225,7 +225,7 @@
       "centreR": 275,
       "widthL": 143,
       "widthR": 143,
-      "heightL": 158,
+      "heightL": 157,
       "heightR": 159,
       "merged": false
     },
@@ -235,13 +235,13 @@
     }
   },
   "1f": {
-    "iou": 0.9931,
-    "rawIou": 0.9738,
+    "iou": 0.9918,
+    "rawIou": 0.9594,
     "offset": {
       "dx": 0,
-      "dy": 2
+      "dy": 3
     },
-    "floor": 0.9731,
+    "floor": 0.9718,
     "simBBox": {
       "x": 52,
       "y": 109,
@@ -250,12 +250,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 110,
+      "y": 111,
       "w": 296,
       "h": 162
     },
     "simArea": 36149,
-    "refArea": 36301,
+    "refArea": 36292,
     "simGap": {
       "gap": 151.5,
       "centreL": 123.5,
@@ -282,13 +282,13 @@
     }
   },
   "2a": {
-    "iou": 0.9786,
+    "iou": 0.9829,
     "rawIou": 0.8985,
     "offset": {
       "dx": 0,
-      "dy": 8
+      "dy": 9
     },
-    "floor": 0.9586,
+    "floor": 0.9629,
     "simBBox": {
       "x": 45,
       "y": 75,
@@ -329,13 +329,13 @@
     }
   },
   "2b": {
-    "iou": 0.9842,
-    "rawIou": 0.9093,
+    "iou": 0.9834,
+    "rawIou": 0.9022,
     "offset": {
       "dx": 0,
-      "dy": 8
+      "dy": 9
     },
-    "floor": 0.9642,
+    "floor": 0.9634,
     "simBBox": {
       "x": 45,
       "y": 75,
@@ -344,12 +344,12 @@
     },
     "refBBox": {
       "x": 46,
-      "y": 82,
+      "y": 83,
       "w": 309,
       "h": 200
     },
     "simArea": 49016,
-    "refArea": 49459,
+    "refArea": 49462,
     "simGap": {
       "gap": 159.5,
       "centreL": 120,
@@ -376,13 +376,13 @@
     }
   },
   "2c": {
-    "iou": 0.9628,
-    "rawIou": 0.9388,
+    "iou": 0.9612,
+    "rawIou": 0.9117,
     "offset": {
       "dx": 1,
-      "dy": 3
+      "dy": 5
     },
-    "floor": 0.9428,
+    "floor": 0.9412,
     "simBBox": {
       "x": 45,
       "y": 75,
@@ -391,12 +391,12 @@
     },
     "refBBox": {
       "x": 45,
-      "y": 77,
+      "y": 79,
       "w": 310,
       "h": 200
     },
     "simArea": 44340,
-    "refArea": 44663,
+    "refArea": 44748,
     "simGap": {
       "gap": 159.5,
       "centreL": 120,
@@ -423,13 +423,13 @@
     }
   },
   "2d": {
-    "iou": 0.9693,
-    "rawIou": 0.8976,
+    "iou": 0.9682,
+    "rawIou": 0.904,
     "offset": {
       "dx": 0,
       "dy": 5
     },
-    "floor": 0.9493,
+    "floor": 0.9482,
     "simBBox": {
       "x": 45,
       "y": 75,
@@ -443,7 +443,7 @@
       "h": 200
     },
     "simArea": 43322,
-    "refArea": 43650,
+    "refArea": 43704,
     "simGap": {
       "gap": 159.5,
       "centreL": 120,
@@ -470,13 +470,13 @@
     }
   },
   "2e": {
-    "iou": 0.9785,
-    "rawIou": 0.8982,
+    "iou": 0.9832,
+    "rawIou": 0.8983,
     "offset": {
       "dx": 0,
-      "dy": 8
+      "dy": 9
     },
-    "floor": 0.9585,
+    "floor": 0.9632,
     "simBBox": {
       "x": 45,
       "y": 75,
@@ -490,7 +490,7 @@
       "h": 200
     },
     "simArea": 49021,
-    "refArea": 49419,
+    "refArea": 49414,
     "simGap": {
       "gap": 159.5,
       "centreL": 120,
@@ -517,13 +517,13 @@
     }
   },
   "2f": {
-    "iou": 0.9673,
-    "rawIou": 0.9139,
+    "iou": 0.9671,
+    "rawIou": 0.9224,
     "offset": {
-      "dx": 0,
-      "dy": 5
+      "dx": 1,
+      "dy": 4
     },
-    "floor": 0.9473,
+    "floor": 0.9471,
     "simBBox": {
       "x": 45,
       "y": 75,
@@ -537,7 +537,7 @@
       "h": 200
     },
     "simArea": 44810,
-    "refArea": 45187,
+    "refArea": 45206,
     "simGap": {
       "gap": 159.5,
       "centreL": 120,
@@ -564,13 +564,13 @@
     }
   },
   "3a": {
-    "iou": 0.9894,
-    "rawIou": 0.9685,
+    "iou": 0.9896,
+    "rawIou": 0.9682,
     "offset": {
       "dx": 0,
       "dy": -2
     },
-    "floor": 0.9694,
+    "floor": 0.9696,
     "simBBox": {
       "x": 48,
       "y": 115,
@@ -584,7 +584,7 @@
       "h": 172
     },
     "simArea": 40865,
-    "refArea": 40992,
+    "refArea": 40990,
     "simGap": {
       "gap": 156,
       "centreL": 121.5,
@@ -611,13 +611,13 @@
     }
   },
   "3b": {
-    "iou": 0.9957,
-    "rawIou": 0.9726,
+    "iou": 0.997,
+    "rawIou": 0.9857,
     "offset": {
       "dx": 0,
-      "dy": -2
+      "dy": -1
     },
-    "floor": 0.9757,
+    "floor": 0.977,
     "simBBox": {
       "x": 48,
       "y": 115,
@@ -626,7 +626,7 @@
     },
     "refBBox": {
       "x": 48,
-      "y": 113,
+      "y": 114,
       "w": 304,
       "h": 172
     },
@@ -658,13 +658,13 @@
     }
   },
   "3c": {
-    "iou": 0.9599,
-    "rawIou": 0.9377,
+    "iou": 0.9574,
+    "rawIou": 0.8999,
     "offset": {
-      "dx": 0,
-      "dy": -2
+      "dx": 1,
+      "dy": -4
     },
-    "floor": 0.9399,
+    "floor": 0.9374,
     "simBBox": {
       "x": 48,
       "y": 115,
@@ -673,12 +673,12 @@
     },
     "refBBox": {
       "x": 48,
-      "y": 113,
+      "y": 111,
       "w": 304,
-      "h": 172
+      "h": 171
     },
     "simArea": 36595,
-    "refArea": 36757,
+    "refArea": 36705,
     "simGap": {
       "gap": 156,
       "centreL": 121.5,
@@ -695,8 +695,8 @@
       "centreR": 277.5,
       "widthL": 148,
       "widthR": 148,
-      "heightL": 172,
-      "heightR": 172,
+      "heightL": 171,
+      "heightR": 171,
       "merged": false
     },
     "cssRatio": {
@@ -705,13 +705,13 @@
     }
   },
   "3d": {
-    "iou": 0.9676,
-    "rawIou": 0.9098,
+    "iou": 0.964,
+    "rawIou": 0.9079,
     "offset": {
       "dx": 0,
-      "dy": -3
+      "dy": 4
     },
-    "floor": 0.9476,
+    "floor": 0.944,
     "simBBox": {
       "x": 48,
       "y": 115,
@@ -720,12 +720,12 @@
     },
     "refBBox": {
       "x": 48,
-      "y": 112,
+      "y": 119,
       "w": 304,
-      "h": 172
+      "h": 171
     },
     "simArea": 35577,
-    "refArea": 35714,
+    "refArea": 35625,
     "simGap": {
       "gap": 156,
       "centreL": 121.5,
@@ -742,8 +742,8 @@
       "centreR": 277.5,
       "widthL": 148,
       "widthR": 148,
-      "heightL": 172,
-      "heightR": 172,
+      "heightL": 171,
+      "heightR": 171,
       "merged": false
     },
     "cssRatio": {
@@ -752,13 +752,13 @@
     }
   },
   "3e": {
-    "iou": 0.9379,
-    "rawIou": 0.9338,
+    "iou": 0.9405,
+    "rawIou": 0.9294,
     "offset": {
-      "dx": 1,
-      "dy": -1
+      "dx": 0,
+      "dy": 1
     },
-    "floor": 0.9179,
+    "floor": 0.9205,
     "simBBox": {
       "x": 48,
       "y": 115,
@@ -767,12 +767,12 @@
     },
     "refBBox": {
       "x": 48,
-      "y": 114,
+      "y": 116,
       "w": 304,
       "h": 172
     },
     "simArea": 26702,
-    "refArea": 26955,
+    "refArea": 26946,
     "simGap": {
       "gap": 156,
       "centreL": 121.5,
@@ -799,13 +799,13 @@
     }
   },
   "3f": {
-    "iou": 0.9972,
-    "rawIou": 0.9862,
+    "iou": 0.9965,
+    "rawIou": 0.9883,
     "offset": {
       "dx": 0,
       "dy": -1
     },
-    "floor": 0.9772,
+    "floor": 0.9765,
     "simBBox": {
       "x": 48,
       "y": 115,
@@ -819,7 +819,7 @@
       "h": 172
     },
     "simArea": 41271,
-    "refArea": 41327,
+    "refArea": 41343,
     "simGap": {
       "gap": 156,
       "centreL": 121.5,
@@ -846,13 +846,13 @@
     }
   },
   "4a": {
-    "iou": 0.9877,
-    "rawIou": 0.9865,
+    "iou": 0.9869,
+    "rawIou": 0.9748,
     "offset": {
       "dx": 0,
-      "dy": 1
+      "dy": -1
     },
-    "floor": 0.9677,
+    "floor": 0.9669,
     "simBBox": {
       "x": 57,
       "y": 109,
@@ -861,12 +861,12 @@
     },
     "refBBox": {
       "x": 57,
-      "y": 109,
+      "y": 107,
       "w": 286,
-      "h": 180
+      "h": 181
     },
     "simArea": 40074,
-    "refArea": 40183,
+    "refArea": 40181,
     "simGap": {
       "gap": 146,
       "centreL": 126.5,
@@ -883,8 +883,8 @@
       "centreR": 272.5,
       "widthL": 140,
       "widthR": 140,
-      "heightL": 180,
-      "heightR": 180,
+      "heightL": 181,
+      "heightR": 181,
       "merged": false
     },
     "cssRatio": {
@@ -893,13 +893,13 @@
     }
   },
   "4b": {
-    "iou": 0.997,
-    "rawIou": 0.9886,
+    "iou": 0.9938,
+    "rawIou": 0.9922,
     "offset": {
       "dx": 0,
-      "dy": -1
+      "dy": 1
     },
-    "floor": 0.977,
+    "floor": 0.9738,
     "simBBox": {
       "x": 57,
       "y": 109,
@@ -908,12 +908,12 @@
     },
     "refBBox": {
       "x": 57,
-      "y": 108,
+      "y": 109,
       "w": 286,
       "h": 180
     },
     "simArea": 40479,
-    "refArea": 40576,
+    "refArea": 40582,
     "simGap": {
       "gap": 146,
       "centreL": 126.5,
@@ -940,60 +940,13 @@
     }
   },
   "4c": {
-    "iou": 0.961,
-    "rawIou": 0.961,
-    "offset": {
-      "dx": 0,
-      "dy": 0
-    },
-    "floor": 0.941,
-    "simBBox": {
-      "x": 57,
-      "y": 109,
-      "w": 286,
-      "h": 180
-    },
-    "refBBox": {
-      "x": 57,
-      "y": 109,
-      "w": 286,
-      "h": 180
-    },
-    "simArea": 35803,
-    "refArea": 35946,
-    "simGap": {
-      "gap": 146,
-      "centreL": 126.5,
-      "centreR": 272.5,
-      "widthL": 140,
-      "widthR": 140,
-      "heightL": 180,
-      "heightR": 180,
-      "merged": false
-    },
-    "refGap": {
-      "gap": 146,
-      "centreL": 126.5,
-      "centreR": 272.5,
-      "widthL": 140,
-      "widthR": 140,
-      "heightL": 180,
-      "heightR": 180,
-      "merged": false
-    },
-    "cssRatio": {
-      "sim": 1,
-      "ref": 1
-    }
-  },
-  "4d": {
-    "iou": 0.9559,
-    "rawIou": 0.9553,
+    "iou": 0.9598,
+    "rawIou": 0.9474,
     "offset": {
       "dx": 0,
       "dy": -1
     },
-    "floor": 0.9359,
+    "floor": 0.9398,
     "simBBox": {
       "x": 57,
       "y": 109,
@@ -1002,59 +955,12 @@
     },
     "refBBox": {
       "x": 57,
-      "y": 108,
-      "w": 286,
-      "h": 180
-    },
-    "simArea": 34785,
-    "refArea": 34830,
-    "simGap": {
-      "gap": 146,
-      "centreL": 126.5,
-      "centreR": 272.5,
-      "widthL": 140,
-      "widthR": 140,
-      "heightL": 180,
-      "heightR": 180,
-      "merged": false
-    },
-    "refGap": {
-      "gap": 146,
-      "centreL": 126.5,
-      "centreR": 272.5,
-      "widthL": 140,
-      "widthR": 140,
-      "heightL": 180,
-      "heightR": 180,
-      "merged": false
-    },
-    "cssRatio": {
-      "sim": 1,
-      "ref": 1
-    }
-  },
-  "4e": {
-    "iou": 0.9964,
-    "rawIou": 0.9893,
-    "offset": {
-      "dx": 0,
-      "dy": 1
-    },
-    "floor": 0.9764,
-    "simBBox": {
-      "x": 57,
-      "y": 109,
-      "w": 286,
-      "h": 180
-    },
-    "refBBox": {
-      "x": 57,
-      "y": 109,
+      "y": 107,
       "w": 286,
       "h": 181
     },
-    "simArea": 40483,
-    "refArea": 40538,
+    "simArea": 35803,
+    "refArea": 35932,
     "simGap": {
       "gap": 146,
       "centreL": 126.5,
@@ -1080,14 +986,14 @@
       "ref": 1
     }
   },
-  "4f": {
-    "iou": 0.997,
-    "rawIou": 0.997,
+  "4d": {
+    "iou": 0.9644,
+    "rawIou": 0.9538,
     "offset": {
       "dx": 0,
-      "dy": 0
+      "dy": 1
     },
-    "floor": 0.977,
+    "floor": 0.9444,
     "simBBox": {
       "x": 57,
       "y": 109,
@@ -1096,12 +1002,59 @@
     },
     "refBBox": {
       "x": 57,
+      "y": 110,
+      "w": 286,
+      "h": 181
+    },
+    "simArea": 34785,
+    "refArea": 34910,
+    "simGap": {
+      "gap": 146,
+      "centreL": 126.5,
+      "centreR": 272.5,
+      "widthL": 140,
+      "widthR": 140,
+      "heightL": 180,
+      "heightR": 180,
+      "merged": false
+    },
+    "refGap": {
+      "gap": 146,
+      "centreL": 126.5,
+      "centreR": 272.5,
+      "widthL": 140,
+      "widthR": 140,
+      "heightL": 181,
+      "heightR": 181,
+      "merged": false
+    },
+    "cssRatio": {
+      "sim": 1,
+      "ref": 1
+    }
+  },
+  "4e": {
+    "iou": 0.9941,
+    "rawIou": 0.992,
+    "offset": {
+      "dx": 0,
+      "dy": -1
+    },
+    "floor": 0.9741,
+    "simBBox": {
+      "x": 57,
       "y": 109,
       "w": 286,
       "h": 180
     },
-    "simArea": 40479,
-    "refArea": 40586,
+    "refBBox": {
+      "x": 57,
+      "y": 108,
+      "w": 286,
+      "h": 180
+    },
+    "simArea": 40483,
+    "refArea": 40547,
     "simGap": {
       "gap": 146,
       "centreL": 126.5,
@@ -1127,14 +1080,61 @@
       "ref": 1
     }
   },
-  "5a": {
-    "iou": 0.9956,
-    "rawIou": 0.945,
+  "4f": {
+    "iou": 0.996,
+    "rawIou": 0.996,
     "offset": {
       "dx": 0,
-      "dy": 3
+      "dy": 0
     },
-    "floor": 0.9756,
+    "floor": 0.976,
+    "simBBox": {
+      "x": 57,
+      "y": 109,
+      "w": 286,
+      "h": 180
+    },
+    "refBBox": {
+      "x": 57,
+      "y": 108,
+      "w": 286,
+      "h": 181
+    },
+    "simArea": 40479,
+    "refArea": 40572,
+    "simGap": {
+      "gap": 146,
+      "centreL": 126.5,
+      "centreR": 272.5,
+      "widthL": 140,
+      "widthR": 140,
+      "heightL": 180,
+      "heightR": 180,
+      "merged": false
+    },
+    "refGap": {
+      "gap": 146,
+      "centreL": 126.5,
+      "centreR": 272.5,
+      "widthL": 140,
+      "widthR": 140,
+      "heightL": 181,
+      "heightR": 181,
+      "merged": false
+    },
+    "cssRatio": {
+      "sim": 1,
+      "ref": 1
+    }
+  },
+  "5a": {
+    "iou": 0.995,
+    "rawIou": 0.9312,
+    "offset": {
+      "dx": 0,
+      "dy": 4
+    },
+    "floor": 0.975,
     "simBBox": {
       "x": 61,
       "y": 139,
@@ -1143,12 +1143,12 @@
     },
     "refBBox": {
       "x": 61,
-      "y": 142,
+      "y": 143,
       "w": 278,
       "h": 130
     },
     "simArea": 29312,
-    "refArea": 29390,
+    "refArea": 29294,
     "simGap": {
       "gap": 142,
       "centreL": 128.5,
@@ -1175,13 +1175,13 @@
     }
   },
   "5b": {
-    "iou": 0.9946,
-    "rawIou": 0.9868,
+    "iou": 0.9964,
+    "rawIou": 0.9617,
     "offset": {
       "dx": 0,
-      "dy": -1
+      "dy": 2
     },
-    "floor": 0.9746,
+    "floor": 0.9764,
     "simBBox": {
       "x": 61,
       "y": 139,
@@ -1190,12 +1190,12 @@
     },
     "refBBox": {
       "x": 61,
-      "y": 138,
+      "y": 141,
       "w": 278,
       "h": 130
     },
     "simArea": 29312,
-    "refArea": 29451,
+    "refArea": 29410,
     "simGap": {
       "gap": 142,
       "centreL": 128.5,
@@ -1222,13 +1222,13 @@
     }
   },
   "5c": {
-    "iou": 0.9509,
-    "rawIou": 0.9054,
+    "iou": 0.9492,
+    "rawIou": 0.8708,
     "offset": {
-      "dx": 0,
-      "dy": -3
+      "dx": 1,
+      "dy": -5
     },
-    "floor": 0.9309,
+    "floor": 0.9292,
     "simBBox": {
       "x": 61,
       "y": 139,
@@ -1237,12 +1237,12 @@
     },
     "refBBox": {
       "x": 61,
-      "y": 136,
+      "y": 134,
       "w": 278,
       "h": 130
     },
     "simArea": 25081,
-    "refArea": 25234,
+    "refArea": 25231,
     "simGap": {
       "gap": 142,
       "centreL": 128.5,
@@ -1269,13 +1269,13 @@
     }
   },
   "5d": {
-    "iou": 0.9439,
-    "rawIou": 0.9294,
+    "iou": 0.9559,
+    "rawIou": 0.9359,
     "offset": {
       "dx": 0,
       "dy": -1
     },
-    "floor": 0.9239,
+    "floor": 0.9359,
     "simBBox": {
       "x": 61,
       "y": 139,
@@ -1289,7 +1289,7 @@
       "h": 130
     },
     "simArea": 23618,
-    "refArea": 23676,
+    "refArea": 23797,
     "simGap": {
       "gap": 142,
       "centreL": 128.5,
@@ -1316,13 +1316,13 @@
     }
   },
   "5e": {
-    "iou": 0.9961,
-    "rawIou": 0.9854,
+    "iou": 0.9976,
+    "rawIou": 0.9803,
     "offset": {
       "dx": 0,
-      "dy": -1
+      "dy": 1
     },
-    "floor": 0.9761,
+    "floor": 0.9776,
     "simBBox": {
       "x": 61,
       "y": 139,
@@ -1331,12 +1331,12 @@
     },
     "refBBox": {
       "x": 61,
-      "y": 138,
+      "y": 140,
       "w": 278,
       "h": 130
     },
     "simArea": 29312,
-    "refArea": 29426,
+    "refArea": 29382,
     "simGap": {
       "gap": 142,
       "centreL": 128.5,
@@ -1363,13 +1363,13 @@
     }
   },
   "5f": {
-    "iou": 0.9596,
-    "rawIou": 0.9596,
+    "iou": 0.9475,
+    "rawIou": 0.9283,
     "offset": {
       "dx": 0,
-      "dy": 0
+      "dy": -2
     },
-    "floor": 0.9396,
+    "floor": 0.9275,
     "simBBox": {
       "x": 61,
       "y": 139,
@@ -1378,12 +1378,12 @@
     },
     "refBBox": {
       "x": 61,
-      "y": 139,
+      "y": 137,
       "w": 278,
-      "h": 130
+      "h": 131
     },
     "simArea": 25122,
-    "refArea": 25240,
+    "refArea": 25339,
     "simGap": {
       "gap": 142,
       "centreL": 128.5,
@@ -1400,8 +1400,8 @@
       "centreR": 270.5,
       "widthL": 136,
       "widthR": 136,
-      "heightL": 130,
-      "heightR": 130,
+      "heightL": 131,
+      "heightR": 131,
       "merged": false
     },
     "cssRatio": {
@@ -1410,13 +1410,13 @@
     }
   },
   "6a": {
-    "iou": 0.9745,
-    "rawIou": 0.7934,
+    "iou": 0.9836,
+    "rawIou": 0.7538,
     "offset": {
       "dx": 0,
-      "dy": -8
+      "dy": -11
     },
-    "floor": 0.9545,
+    "floor": 0.9636,
     "simBBox": {
       "x": 52,
       "y": 161,
@@ -1425,12 +1425,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 152,
+      "y": 150,
       "w": 296,
       "h": 108
     },
     "simArea": 21306,
-    "refArea": 21530,
+    "refArea": 21532,
     "simGap": {
       "gap": 152,
       "centreL": 123.5,
@@ -1457,13 +1457,13 @@
     }
   },
   "6b": {
-    "iou": 0.9504,
-    "rawIou": 0.8646,
+    "iou": 0.9524,
+    "rawIou": 0.874,
     "offset": {
       "dx": 0,
       "dy": 4
     },
-    "floor": 0.9304,
+    "floor": 0.9324,
     "simBBox": {
       "x": 52,
       "y": 161,
@@ -1474,10 +1474,10 @@
       "x": 52,
       "y": 165,
       "w": 296,
-      "h": 108
+      "h": 107
     },
     "simArea": 17022,
-    "refArea": 17181,
+    "refArea": 17177,
     "simGap": {
       "gap": 152,
       "centreL": 123.5,
@@ -1494,8 +1494,8 @@
       "centreR": 275.5,
       "widthL": 144,
       "widthR": 144,
-      "heightL": 108,
-      "heightR": 108,
+      "heightL": 107,
+      "heightR": 107,
       "merged": false
     },
     "cssRatio": {
@@ -1504,13 +1504,13 @@
     }
   },
   "6c": {
-    "iou": 0.9454,
-    "rawIou": 0.8809,
+    "iou": 0.94,
+    "rawIou": 0.8419,
     "offset": {
       "dx": 1,
-      "dy": -3
+      "dy": -4
     },
-    "floor": 0.9254,
+    "floor": 0.92,
     "simBBox": {
       "x": 52,
       "y": 161,
@@ -1519,12 +1519,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 158,
+      "y": 156,
       "w": 296,
       "h": 108
     },
     "simArea": 18214,
-    "refArea": 18409,
+    "refArea": 18405,
     "simGap": {
       "gap": 152,
       "centreL": 123.5,
@@ -1551,13 +1551,13 @@
     }
   },
   "6d": {
-    "iou": 0.9397,
-    "rawIou": 0.9397,
+    "iou": 0.9356,
+    "rawIou": 0.9356,
     "offset": {
       "dx": 0,
       "dy": 0
     },
-    "floor": 0.9197,
+    "floor": 0.9156,
     "simBBox": {
       "x": 52,
       "y": 161,
@@ -1566,12 +1566,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 160,
+      "y": 161,
       "w": 296,
       "h": 108
     },
     "simArea": 15734,
-    "refArea": 15909,
+    "refArea": 15930,
     "simGap": {
       "gap": 152,
       "centreL": 123.5,
@@ -1598,13 +1598,13 @@
     }
   },
   "6e": {
-    "iou": 0.9507,
-    "rawIou": 0.7655,
+    "iou": 0.9275,
+    "rawIou": 0.7223,
     "offset": {
-      "dx": 1,
-      "dy": -7
+      "dx": 0,
+      "dy": -8
     },
-    "floor": 0.9307,
+    "floor": 0.9075,
     "simBBox": {
       "x": 52,
       "y": 161,
@@ -1612,13 +1612,13 @@
       "h": 107
     },
     "refBBox": {
-      "x": 52,
+      "x": 53,
       "y": 154,
-      "w": 296,
-      "h": 108
+      "w": 294,
+      "h": 107
     },
     "simArea": 15017,
-    "refArea": 15111,
+    "refArea": 15110,
     "simGap": {
       "gap": 152,
       "centreL": 123.5,
@@ -1630,13 +1630,13 @@
       "merged": false
     },
     "refGap": {
-      "gap": 152,
-      "centreL": 123.5,
-      "centreR": 275.5,
-      "widthL": 144,
-      "widthR": 144,
-      "heightL": 108,
-      "heightR": 108,
+      "gap": 151,
+      "centreL": 124,
+      "centreR": 275,
+      "widthL": 143,
+      "widthR": 143,
+      "heightL": 107,
+      "heightR": 107,
       "merged": false
     },
     "cssRatio": {
@@ -1645,13 +1645,13 @@
     }
   },
   "6f": {
-    "iou": 0.9462,
-    "rawIou": 0.7662,
+    "iou": 0.9795,
+    "rawIou": 0.7622,
     "offset": {
       "dx": 0,
-      "dy": -8
+      "dy": -10
     },
-    "floor": 0.9262,
+    "floor": 0.9595,
     "simBBox": {
       "x": 52,
       "y": 161,
@@ -1660,12 +1660,12 @@
     },
     "refBBox": {
       "x": 52,
-      "y": 151,
+      "y": 150,
       "w": 296,
-      "h": 108
+      "h": 109
     },
     "simArea": 21308,
-    "refArea": 21540,
+    "refArea": 21530,
     "simGap": {
       "gap": 152,
       "centreL": 123.5,
@@ -1682,8 +1682,8 @@
       "centreR": 275.5,
       "widthL": 144,
       "widthR": 144,
-      "heightL": 108,
-      "heightR": 108,
+      "heightL": 109,
+      "heightR": 109,
       "merged": false
     },
     "cssRatio": {

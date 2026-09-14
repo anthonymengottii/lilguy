@@ -243,7 +243,13 @@ export function shiftMask({ w, h, m }, dx, dy) {
 // Searched as two 1-D passes rather than a full grid: the offset is a pure translation, so x and y
 // are separable, and a 17x17 grid over a 400x400 mask is 46M pixel comparisons per state — slow
 // enough that a 36-state sweep stops being something you re-run freely.
-export function alignedIoU(simMask, refMask, radius = 8) {
+// radius 16, not 8. Five of the 36 states pinned their search at exactly dy = +-8 — the old limit —
+// which means the true offset was outside it and the score was whatever the boundary happened to
+// give. Those states were the unstable ones: 6a swung between 0.919 and 0.970 across repeated runs of
+// an identical build, because alignment was contributing 0.18 of its score and the search could not
+// finish. The reference paints some states several px further off than others, and the search has to
+// be able to reach that.
+export function alignedIoU(simMask, refMask, radius = 16) {
   const raw = iou(simMask, refMask);
   let best = { iou: raw, dx: 0, dy: 0 };
   for (let dy = -radius; dy <= radius; dy++) {

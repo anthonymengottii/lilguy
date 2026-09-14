@@ -1,10 +1,33 @@
 // --- page wiring -------------------------------------------------------------------------------
-// The data is authored in a 400x400 space, but nothing is ever drawn near its edges. Measured
-// across all 36 states, nine pointer positions each, and every rotation clip, the union of drawn
-// pixels is x 15..377, y 42..334 — so the canvas is cropped to that box plus 4px of breathing
-// room, and the scene is shifted by the same offset. Cropping to the RESTING box would clip the
-// eyes: the pair travels ~46px with the look and the rot clips swing it further still.
-const CROP = { x: 11, y: 38, w: 372, h: 304 };
+// THE TARGET DISPLAY. ocellus ships on a Waveshare ESP32-S3-Touch-LCD-1.28: a 240x240 ROUND panel
+// driven by a GC9A01 (see SCREEN_RES and the Arduino_GC9A01 construction in ../../main.cpp). The page
+// renders at that size, with the same circular mask the glass imposes, so what shows here is what the
+// hardware can show — it was a 372x304 rectangle before, which flattered the layout by giving it
+// corners the real panel does not have.
+const DISPLAY = 240;
+const RADIUS = DISPLAY / 2;
+
+// The data is authored in a 400x400 space and centred on (196, 188) — the centre of the union of
+// everything the 36 states ever draw, x 15..377 and y 42..334.
+const SCENE_CX = 196;
+const SCENE_CY = 188;
+
+// How much of the authoring space fits in the disc. Measured rather than derived: for each candidate
+// scale, every one of the 36 states was rendered at seven everyday looks and four extreme ones, and
+// the ink outside r=120 counted.
+//
+//     scale   common poses clipped   extreme poses clipped   eye size
+//     0.587        0 frames                0 frames          85x95
+//     0.650        0 frames               31 frames, 3.6%    94x105
+//     0.680        1 frame                37 frames, 7.8%    98x110
+//     0.720       24 frames               69 frames, 17.1%   104x117
+//
+// 0.65 is the last scale that never touches the mask in a pose anyone will hold, while being 11%
+// larger than the figure that clips nothing anywhere. Sizing for the absolute worst case — state 2e
+// at full diagonal deflection, which reaches an ink radius of 204 — would shrink the eyes all the
+// time to protect a corner almost nobody reaches.
+const SCENE_SCALE = 0.65;
+
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 const rt = new LarkRuntime(ANIM_DATA, '1b');
@@ -79,8 +102,22 @@ function frame(now) {
   // hand-maintained copy had drifted from lark.js.
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(1, 0, 0, 1, -CROP.x, -CROP.y);
+
+  // The round glass. Clipping to the disc is not decoration: it is the panel's actual shape, and
+  // anything drawn outside it simply does not exist on the device. Doing it here rather than with a
+  // CSS border-radius means a screenshot of this canvas is what the hardware would show.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(RADIUS, RADIUS, RADIUS, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Authoring space (400x400, scene centred on 196,188) -> the 240px disc.
+  ctx.translate(RADIUS, RADIUS);
+  ctx.scale(SCENE_SCALE, SCENE_SCALE);
+  ctx.translate(-SCENE_CX, -SCENE_CY);
   rt.draw(ctx, now, { width: 400, height: 400 });
+  ctx.restore();
+
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   renderFired();
   requestAnimationFrame(frame);

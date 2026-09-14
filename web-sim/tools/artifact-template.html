@@ -47,8 +47,13 @@
     place-items: center;
     border: 1px solid var(--line);
   }
-  /* 372x304, the union of everything the data ever draws — see the note by CROP in the script. */
-  canvas { width: 100%; max-width: 420px; height: auto; aspect-ratio: 372 / 304; display: block; touch-action: none; }
+  /* 240x240 round: the Waveshare ESP32-S3-Touch-LCD-1.28 this project ships on. The backing store is
+     the panel's real resolution and the CSS box is a whole multiple of it, so the preview is the
+     hardware's own pixels magnified rather than resampled. */
+  canvas {
+    width: 100%; max-width: 360px; height: auto; aspect-ratio: 1; display: block;
+    touch-action: none; border-radius: 50%; image-rendering: pixelated;
+  }
   .panel {
     margin-top: 1.1rem;
     background: var(--panel);
@@ -82,10 +87,11 @@
 <div class="wrap">
   <h1>Lark Runtime</h1>
   <p class="sub">Os olhos do hesjustalittleguy.com, executados a partir dos dados de animação do
-  próprio site, em vez de reproduzidos à mão. Mova o cursor para guiar o olhar.</p>
+  próprio site, em vez de reproduzidos à mão, no display redondo de 240×240 que o ocellus usa.
+  Mova o cursor para guiar o olhar.</p>
 
   <div class="stage">
-    <canvas id="stage" width="372" height="304"></canvas>
+    <canvas id="stage" width="240" height="240"></canvas>
   </div>
 
   <div class="panel">
@@ -110,6 +116,13 @@
   </div>
 
   <div class="warn">
+    <b>No display de verdade.</b> O canvas é 240×240 com recorte circular — a Waveshare
+    ESP32-S3-Touch-LCD-1.28 (GC9A01) em que o ocellus roda, no tamanho e no formato reais. Antes era
+    um retângulo de 372×304, que dava ao desenho cantos que o painel não tem. A escala do espaço de
+    autoria para o disco é 0,65: medindo os 36 estados em sete olhares comuns e quatro extremos,
+    0,65 é a maior escala que nunca encosta na máscara numa pose que alguém vai segurar, e ainda é
+    11% maior que a escala que não corta nada em lugar nenhum. Cada olho fica com 94×105px.
+    <br><br>
     <b>Fidelidade medida.</b> Os 36 estados são comparados com a original automaticamente
     (<code>npm run measure:iou</code>): sobreposição média de <b>96,9%</b>, mínima de 91,2%, e o
     grafo de cena, as cores e os tempos dos clipes vêm direto dos dados dela. Quem escolhe qual
@@ -122,9 +135,9 @@
     truncavam antes de girar, descartando justamente os dois pontos que importam.
     <br><br>
     A <b>distância entre os olhos</b> também bate: 151,5px em repouso contra 152 da original, nos
-    36 estados. O valor de 164 que aparecia antes era artefato de medição — o canvas tem 372px de
-    backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code> vinha
-    inflado 1,129×.
+    36 estados. O valor de 164 que aparecia antes era artefato de medição: o canvas de então tinha
+    372px de backing store e 420px em CSS, e tudo que passava por <code>getBoundingClientRect</code>
+    vinha inflado 1,129×.
     <br><br>
     Os olhos têm <b>profundidade</b>: o que se afasta encolhe nos dois eixos (144→98px de largura) e
     o que vem à frente alonga, e a distância entre eles contrai de 152 para 131px. Medido contra a
