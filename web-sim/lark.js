@@ -383,6 +383,25 @@ export class LarkRuntime {
     this.setState(stateId);
     this.active = [];     // running clip instances
     this.look = [0, 0];   // pointer-driven look vector, -1..1 per axis
+    // Per-node colour overrides, keyed by node name: { eye_l: 'ff0000', pup_r: '00ff00', ... }.
+    // Empty by default, so a runtime nobody configures renders the data exactly as shipped.
+    this.colours = {};
+  }
+
+  // Override a node's colour, or clear it by passing null. Node names are the data's own: eye_l,
+  // eye_r, pup_l, pup_r, and the h1_*/h2_* highlights in the states that have them.
+  //
+  // An override REPLACES the hole behaviour. Twenty of the 36 states ship `000000` on the pupils,
+  // which the renderer punches out rather than fills (see drawNode), and a colour asked for there is
+  // a colour the caller wants to see — refusing it would make the control look broken in more than
+  // half the states. Clearing the override restores whatever the data said, hole included.
+  setColour(node, hex) {
+    if (hex == null) delete this.colours[node];
+    else this.colours[node] = String(hex).replace(/^#/, '');
+  }
+
+  colourOf(name) {
+    return this.colours[name] ?? this.objs[name]?.c;
   }
 
   setState(stateId) {
@@ -772,16 +791,23 @@ export class LarkRuntime {
       // the rule never fires for them. Every state whose pupil is "000000" was in the failing set and
       // no state with a coloured pupil was — 1a/3a/4a are the exceptions that prove it, scoring ~0.98
       // with a black pupil simply because theirs is small enough not to matter much.
+      // An override wins over the data, and a node the caller has coloured is FILLED even where the
+      // data asked for a hole — see setColour.
+      const colour = this.colourOf(name);
       const p = ch.p || o.p;
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = `#${o.c}`;
+      ctx.fillStyle = `#${colour}`;
       const lid = o.ul ? this.lidFor(name, now) : null;
       if (lid) {
         ctx.beginPath();
         tracePath(ctx, lid);
         ctx.clip();
       }
-      if (o.c === HOLE_COLOUR) ctx.globalCompositeOperation = 'destination-out';
+      // Only the DATA's own 000000 punches a hole. Someone who picks black from a colour control
+      // means black, and turning their choice into a hole would look like the control doing nothing.
+      if (colour === HOLE_COLOUR && this.colours[name] === undefined) {
+        ctx.globalCompositeOperation = 'destination-out';
+      }
       ctx.beginPath();
       tracePath(ctx, p);
       ctx.fill();

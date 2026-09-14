@@ -55,6 +55,43 @@ stateSel.addEventListener('change', () => {
   rt.active = [];
   // Re-run the boot rule so the ambient loops restart under the new state.
   for (const a of AMBIENT) rt.play(a, performance.now());
+  syncColourInputs();
+});
+
+// --- colour controls ---------------------------------------------------------------------------
+// Three pickers: the eye fill (both eyes together, since the data never colours them differently)
+// and each pupil on its own. They override the state's own colours until "do estado" clears them.
+//
+// A picker cannot show "no override", so it always displays the colour currently in effect: the
+// override if there is one, otherwise the state's. That way switching states with nothing overridden
+// walks the pickers through the data's palette, which is also the quickest way to see it.
+const cEye = document.getElementById('cEye');
+const cPupL = document.getElementById('cPupL');
+const cPupR = document.getElementById('cPupR');
+
+// A pupil the data draws as a hole has no colour to show. Offer black as the starting point — the
+// value only reaches the runtime once the picker is actually used.
+const HOLE = '000000';
+const shown = (node) => `#${rt.colourOf(node) || HOLE}`;
+
+function syncColourInputs() {
+  cEye.value = shown('eye_l');
+  cPupL.value = shown('pup_l');
+  cPupR.value = shown('pup_r');
+}
+syncColourInputs();
+
+cEye.addEventListener('input', () => {
+  // Both eyes and, where a state has them, the highlights: they are the same white in every state
+  // that carries them, so leaving them behind would strand a white sliver on a recoloured eye.
+  for (const n of ['eye_l', 'eye_r']) rt.setColour(n, cEye.value);
+});
+cPupL.addEventListener('input', () => rt.setColour('pup_l', cPupL.value));
+cPupR.addEventListener('input', () => rt.setColour('pup_r', cPupR.value));
+
+document.getElementById('cReset').addEventListener('click', () => {
+  for (const n of ['eye_l', 'eye_r', 'pup_l', 'pup_r']) rt.setColour(n, null);
+  syncColourInputs();
 });
 
 // One button per clip. The five sensor-gated ones still play here on demand; the original only

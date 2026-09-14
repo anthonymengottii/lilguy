@@ -69,6 +69,50 @@ test('the generated page loads and renders', async ({ page }) => {
     `is the pointer wiring live and is LOOK_TRAVEL_X sane?`
   ).toBeGreaterThan(5);
 
+  // The colour controls reach the drawing. Worth a gate because the interesting case is silent: in
+  // the 20 states whose pupil is the data's 000000 the renderer punches a hole rather than filling,
+  // and a colour asked for there has to override that or the picker looks broken in most states.
+  const topColour = () => page.evaluate(() => {
+    const c = document.querySelector('#stage');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const n = {};
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] <= 16) continue;
+      const k = [d[i], d[i + 1], d[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+      n[k] = (n[k] || 0) + 1;
+    }
+    return Object.entries(n).sort((a, b) => b[1] - a[1])[0];
+  });
+
+  // 1a: white eye, hole pupil — the case an override has to be able to fill.
+  await page.evaluate(() => {
+    const s = document.getElementById('state');
+    s.value = '1a';
+    s.dispatchEvent(new Event('change'));
+    const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input')); };
+    set('cEye', '#1040ff');
+    set('cPupL', '#ffcc00');
+  });
+  await page.waitForTimeout(400);
+  const [eyeHex] = await topColour();
+  expect(eyeHex, 'the eye colour picker did not reach the canvas').toBe('1040ff');
+  const filledPupil = await page.evaluate(() => {
+    const c = document.querySelector('#stage');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i+3] > 16 && d[i] > 0xe0 && d[i+1] > 0xb0 && d[i+2] < 0x40) n++;
+    }
+    return n;
+  });
+  expect(filledPupil, 'a pupil the data draws as a hole was not filled by the picker').toBeGreaterThan(20);
+
+  // Reset restores the data's own colours, hole included.
+  await page.evaluate(() => document.getElementById('cReset').click());
+  await page.waitForTimeout(400);
+  const [resetHex] = await topColour();
+  expect(resetHex, 'reset did not restore the state colours').toBe('ffffff');
+
   // No module syntax survived — it would have thrown above, but say so explicitly.
   const html = await page.content();
   expect(/^\s*(export|import)\s/m.test(html)).toBe(false);

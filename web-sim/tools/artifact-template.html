@@ -73,6 +73,14 @@
     border: 1px solid var(--line); background: var(--bg); color: var(--fg);
   }
   .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .swatch {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .82rem; color: var(--muted); cursor: pointer;
+  }
+  .swatch input[type="color"] {
+    width: 30px; height: 24px; padding: 0; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+  }
   button {
     font: inherit; font-size: .84rem; padding: .3rem .6rem; border-radius: 999px; cursor: pointer;
     border: 1px solid var(--line); background: var(--bg); color: var(--fg);
@@ -107,6 +115,13 @@
     <div class="field">
       <span class="label">Tocar clipe</span>
       <span class="chips" id="clips"></span>
+    </div>
+    <div class="field">
+      <span class="label">Cores</span>
+      <label class="swatch">fundo <input type="color" id="cEye"></label>
+      <label class="swatch">pupila E <input type="color" id="cPupL"></label>
+      <label class="swatch">pupila D <input type="color" id="cPupR"></label>
+      <button id="cReset" type="button">do estado</button>
     </div>
     <div class="field">
       <span class="label">Sensor 15</span>
@@ -182,6 +197,13 @@
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
   é distribuído. Cinco dos clipes dependem de sensores que a versão web nunca alimenta, então na
   original eles não chegam a rodar.</p>
+
+  <p class="note"><b>Cores.</b> Os três seletores sobrescrevem o que o estado traz — fundo dos dois
+  olhos junto, cada pupila por conta. Em 20 dos 36 estados a pupila do dado é <code>000000</code>,
+  que o runtime perfura em vez de pintar (é o fundo que aparece através dela); escolher uma cor ali
+  troca o buraco por preenchimento, senão o seletor pareceria morto em mais da metade dos estados.
+  Preto escolhido no seletor é preto, não buraco. <b>do estado</b> devolve as cores do dado,
+  buraco incluído.</p>
 </div>
 
 <script src="anim_data.js"></script>

@@ -73,6 +73,14 @@
     border: 1px solid var(--line); background: var(--bg); color: var(--fg);
   }
   .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .swatch {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .82rem; color: var(--muted); cursor: pointer;
+  }
+  .swatch input[type="color"] {
+    width: 30px; height: 24px; padding: 0; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+  }
   button {
     font: inherit; font-size: .84rem; padding: .3rem .6rem; border-radius: 999px; cursor: pointer;
     border: 1px solid var(--line); background: var(--bg); color: var(--fg);
@@ -107,6 +115,13 @@
     <div class="field">
       <span class="label">Tocar clipe</span>
       <span class="chips" id="clips"></span>
+    </div>
+    <div class="field">
+      <span class="label">Cores</span>
+      <label class="swatch">fundo <input type="color" id="cEye"></label>
+      <label class="swatch">pupila E <input type="color" id="cPupL"></label>
+      <label class="swatch">pupila D <input type="color" id="cPupR"></label>
+      <button id="cReset" type="button">do estado</button>
     </div>
     <div class="field">
       <span class="label">Sensor 15</span>
@@ -182,6 +197,13 @@
   <p class="note">Todos os estados e clipes acima são lidos do <code>anim_data.json</code> como ele
   é distribuído. Cinco dos clipes dependem de sensores que a versão web nunca alimenta, então na
   original eles não chegam a rodar.</p>
+
+  <p class="note"><b>Cores.</b> Os três seletores sobrescrevem o que o estado traz — fundo dos dois
+  olhos junto, cada pupila por conta. Em 20 dos 36 estados a pupila do dado é <code>000000</code>,
+  que o runtime perfura em vez de pintar (é o fundo que aparece através dela); escolher uma cor ali
+  troca o buraco por preenchimento, senão o seletor pareceria morto em mais da metade dos estados.
+  Preto escolhido no seletor é preto, não buraco. <b>do estado</b> devolve as cores do dado,
+  buraco incluído.</p>
 </div>
 
 <script src="anim_data.js"></script>
@@ -580,6 +602,25 @@ class LarkRuntime {
     this.setState(stateId);
     this.active = [];     // running clip instances
     this.look = [0, 0];   // pointer-driven look vector, -1..1 per axis
+    // Per-node colour overrides, keyed by node name: { eye_l: 'ff0000', pup_r: '00ff00', ... }.
+    // Empty by default, so a runtime nobody configures renders the data exactly as shipped.
+    this.colours = {};
+  }
+
+  // Override a node's colour, or clear it by passing null. Node names are the data's own: eye_l,
+  // eye_r, pup_l, pup_r, and the h1_*/h2_* highlights in the states that have them.
+  //
+  // An override REPLACES the hole behaviour. Twenty of the 36 states ship `000000` on the pupils,
+  // which the renderer punches out rather than fills (see drawNode), and a colour asked for there is
+  // a colour the caller wants to see — refusing it would make the control look broken in more than
+  // half the states. Clearing the override restores whatever the data said, hole included.
+  setColour(node, hex) {
+    if (hex == null) delete this.colours[node];
+    else this.colours[node] = String(hex).replace(/^#/, '');
+  }
+
+  colourOf(name) {
+    return this.colours[name] ?? this.objs[name]?.c;
   }
 
   setState(stateId) {
@@ -969,16 +1010,23 @@ class LarkRuntime {
       // the rule never fires for them. Every state whose pupil is "000000" was in the failing set and
       // no state with a coloured pupil was — 1a/3a/4a are the exceptions that prove it, scoring ~0.98
       // with a black pupil simply because theirs is small enough not to matter much.
+      // An override wins over the data, and a node the caller has coloured is FILLED even where the
+      // data asked for a hole — see setColour.
+      const colour = this.colourOf(name);
       const p = ch.p || o.p;
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = `#${o.c}`;
+      ctx.fillStyle = `#${colour}`;
       const lid = o.ul ? this.lidFor(name, now) : null;
       if (lid) {
         ctx.beginPath();
         tracePath(ctx, lid);
         ctx.clip();
       }
-      if (o.c === HOLE_COLOUR) ctx.globalCompositeOperation = 'destination-out';
+      // Only the DATA's own 000000 punches a hole. Someone who picks black from a colour control
+      // means black, and turning their choice into a hole would look like the control doing nothing.
+      if (colour === HOLE_COLOUR && this.colours[name] === undefined) {
+        ctx.globalCompositeOperation = 'destination-out';
+      }
       ctx.beginPath();
       tracePath(ctx, p);
       ctx.fill();
@@ -1302,6 +1350,43 @@ stateSel.addEventListener('change', () => {
   rt.active = [];
   // Re-run the boot rule so the ambient loops restart under the new state.
   for (const a of AMBIENT) rt.play(a, performance.now());
+  syncColourInputs();
+});
+
+// --- colour controls ---------------------------------------------------------------------------
+// Three pickers: the eye fill (both eyes together, since the data never colours them differently)
+// and each pupil on its own. They override the state's own colours until "do estado" clears them.
+//
+// A picker cannot show "no override", so it always displays the colour currently in effect: the
+// override if there is one, otherwise the state's. That way switching states with nothing overridden
+// walks the pickers through the data's palette, which is also the quickest way to see it.
+const cEye = document.getElementById('cEye');
+const cPupL = document.getElementById('cPupL');
+const cPupR = document.getElementById('cPupR');
+
+// A pupil the data draws as a hole has no colour to show. Offer black as the starting point — the
+// value only reaches the runtime once the picker is actually used.
+const HOLE = '000000';
+const shown = (node) => `#${rt.colourOf(node) || HOLE}`;
+
+function syncColourInputs() {
+  cEye.value = shown('eye_l');
+  cPupL.value = shown('pup_l');
+  cPupR.value = shown('pup_r');
+}
+syncColourInputs();
+
+cEye.addEventListener('input', () => {
+  // Both eyes and, where a state has them, the highlights: they are the same white in every state
+  // that carries them, so leaving them behind would strand a white sliver on a recoloured eye.
+  for (const n of ['eye_l', 'eye_r']) rt.setColour(n, cEye.value);
+});
+cPupL.addEventListener('input', () => rt.setColour('pup_l', cPupL.value));
+cPupR.addEventListener('input', () => rt.setColour('pup_r', cPupR.value));
+
+document.getElementById('cReset').addEventListener('click', () => {
+  for (const n of ['eye_l', 'eye_r', 'pup_l', 'pup_r']) rt.setColour(n, null);
+  syncColourInputs();
 });
 
 // One button per clip. The five sensor-gated ones still play here on demand; the original only
