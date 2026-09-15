@@ -597,8 +597,10 @@ export class LarkRuntime {
     const u = clampUnit(s);
     const p = piv || [0.5, 0.5];
     const cx = box.x + box.w / 2;
-    // Height grows about the pivot's edge rather than the centre, so a turning eye keeps its footing
-    // instead of stretching symmetrically out of the socket.
+    // Height scales about the pivot's edge rather than the centre, so the eye keeps a footing instead
+    // of stretching symmetrically out of its socket. WHICH edge matters: the caller picks the one the
+    // gaze is heading away from, because pivoting on the near edge makes the squash pull the far edge
+    // back and cancel the translation. See the note at the look-path call site.
     const py = box.y + (p[1] || 0) * box.h;
 
     // Every law is fitted against deflection as a POSITIVE magnitude, with a separate pair of
@@ -736,7 +738,22 @@ export class LarkRuntime {
         // supplied the width change — but that "width change" was columnScan clipping a deflected eye
         // at the canvas midline, not geometry. Measured as separate blobs the widths sat frozen at
         // 143 through the whole sweep while the reference's receding eye went to 99.
-        this.applyTurn(ctx, box, away, [0.5, 1], lift, true, liftW);
+        // The squash pivots on the edge the gaze is heading AWAY from, so it deepens into the look
+        // instead of fighting it.
+        //
+        // It always pivoted on the bottom, which is right looking down and wrong looking up: holding
+        // the bottom edge while the height shrinks drags the TOP edge down, and past about a third of
+        // the way up that cancelled the upward translation outright. Measured, the drawing's top ran
+        // 109 -> 96 -> 97 -> 101 as the pointer rose — it stopped climbing and came back, which is
+        // exactly the "they just centre instead of looking up" this fixes. The reference's top rises
+        // the whole way, 111 -> 104 -> 93 -> 83 -> 72.
+        //
+        // Scored against those reference tops, summed absolute error: bottom pivot 52px, centre 24,
+        // following the look 22 — and the follow version is monotone like the reference rather than
+        // merely close on average. Per-eye widths and heights are bit-identical across all three, at
+        // rest and at every deflection, so this moves the drawing without touching the turn.
+        const pivY = look[1] < 0 ? 0 : 1;
+        this.applyTurn(ctx, box, away, [0.5, pivY], lift, true, liftW);
 
         // The pair's spacing: the horizontal turn pulls it in, the vertical look nudges it out when
         // looking down and in when looking up. Both act on the same translate.
