@@ -17,12 +17,10 @@
 // A 1px disagreement here is worth chasing: it usually means the row sampling point moved, and that
 // is the difference between a shape being one row taller or shorter than the browser draws it.
 //
-// NOT YET COMPILED. The machine this was written on has no C++ toolchain and no PlatformIO, so the
-// ALGORITHM was validated instead by transliterating lark_raster.h to JavaScript and holding it to
-// these same numbers — `npm run check:raster` in web-sim, 17 checks, all passing. That proves the
-// scanline, the clip and the hole are right; it does not prove this file compiles. Run
-// `pio test -e native -f test_lark_raster` on a machine that has the toolchain before trusting it,
-// and expect to fix syntax rather than logic.
+// There is a second implementation of the same algorithm in web-sim/tools/harness/raster-check.mjs,
+// held to these same numbers and runnable with `npm run check:raster`. It was written first, when
+// this machine had no C++ toolchain, and is kept because it runs anywhere Node does and makes the
+// scanline easy to poke at without a build.
 
 static const int W = 400, H = 400;
 static uint8_t fb[W * H];

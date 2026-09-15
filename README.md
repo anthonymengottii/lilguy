@@ -105,6 +105,12 @@ PlatformIO, from its venv:
 ~/.platformio/penv/bin/pio test -e native                # host unit tests
 ```
 
+On Windows, or anywhere PlatformIO came from pip rather than its own installer, `python -m
+platformio` does the same thing — `python -m platformio test -e native`. The `native` environment
+compiles for the host, so it needs a host compiler as well: MinGW-w64 gives one
+(`winget install BrechtSanders.WinLibs.POSIX.UCRT`), and its `bin` has to be on `PATH` or SCons
+reports `'g++' is not recognized` and nothing builds.
+
 To flash, don't guess the port. `tools/flash.py` probes every `/dev/cu.usbmodem*` with the config
 protocol and only flashes the one that answers like an ocellus:
 
@@ -131,9 +137,20 @@ Sources live at the repo root — `src_dir = .` — not in `src/`.
 | `audio.*` | Sensory Bridge wire decode |
 | `config_store.*` | NVS persistence (namespace `ocellus`) |
 | `config.html` | the Web Serial config page, self-contained |
+| `lark_raster.h` | filled cubic Beziers with clipping and hole-punching — the drawing GFX has no primitive for |
+| `web-sim/` | the Lark eye runtime in the browser, and the harnesses that measure it |
 
 `config.*`, `protocol.*`, `palette.*`, and `audio.*` are deliberately Arduino-free, so the `native`
 env compiles and tests them on a host. Keep them that way — it's why there are tests at all.
+`lark_raster.h` is header-only for the same reason.
+
+**The eyes from hesjustalittleguy.com.** `web-sim/` runs that site's own animation data — 36 states
+and 15 clips — in a browser, reproducing it to 97% mean overlap against the live original, measured
+by Playwright harnesses that live alongside it (`npm run measure:iou`, `measure:gaze`,
+`measure:blink`). It is being ported to this firmware, and while that is underway it is also the
+reference the port is checked against: `lark_raster.h`'s tests assert figures the browser actually
+draws rather than numbers picked by hand. `web-sim/README.md` documents the format, which is
+undocumented anywhere else and was decoded from the data.
 
 **Adding an effect:** append an entry to `ANIMS[]` in `animations.h` with a fresh id above the
 current top, and wire a branch into `loop()`'s dispatch. The eye/effect ids run 0–37, then effects
