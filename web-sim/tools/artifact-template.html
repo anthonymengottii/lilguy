@@ -39,13 +39,20 @@
   .wrap { max-width: 660px; margin: 0 auto; }
   h1 { font-size: 1.15rem; margin: 0 0 .3rem; letter-spacing: -0.01em; }
   .sub { color: var(--muted); font-size: .875rem; margin: 0 0 1.4rem; }
-  .stage {
+  /* The panel is a disc, so its surround is one too — a rounded rectangle behind a round screen
+     reads as a screenshot of the drawing rather than as the device. The ring sits just outside the
+     glass, the way the fob's bezel does. */
+  .stage { display: grid; place-items: center; padding: 1.2rem 0; }
+  .bezel {
+    border-radius: 50%;
     background: var(--stage);
-    border-radius: 14px;
-    padding: 1.1rem;
+    border: 1px solid var(--line);
+    padding: 10px;
     display: grid;
     place-items: center;
-    border: 1px solid var(--line);
+    width: min(100%, 380px);
+    aspect-ratio: 1;
+    box-sizing: border-box;
   }
   /* 240x240 round: the Waveshare ESP32-S3-Touch-LCD-1.28 this project ships on. The backing store is
      the panel's real resolution, so the drawing is exactly what the hardware renders — the browser
@@ -103,7 +110,9 @@
   Mova o cursor para guiar o olhar.</p>
 
   <div class="stage">
-    <canvas id="stage" width="240" height="240"></canvas>
+    <div class="bezel">
+      <canvas id="stage" width="240" height="240"></canvas>
+    </div>
   </div>
 
   <div class="panel">
