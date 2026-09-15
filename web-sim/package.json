@@ -14,6 +14,7 @@
     "measure:blink": "node tools/harness/blink-shape.js",
     "measure:t3d": "node tools/harness/t3d-probe.js",
     "build": "node tools/build-artifact.js",
+    "check:raster": "node tools/harness/raster-check.mjs",
     "test": "playwright test"
   },
   "devDependencies": {
