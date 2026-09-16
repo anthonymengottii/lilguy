@@ -1207,7 +1207,8 @@ void multiClick() {
                   : (base == TREATCAT_ID) ? GREETZ_ID                   // 46 -> 47
                   : (base == GREETZ_ID) ? GIF_ID                        // 47 -> 48
                   : (base == GIF_ID) ? ATLAS_BASE                       // 48 -> 49 (first ported effect)
-                  : (base >= ATLAS_BASE) ? (base + 1 < ANIM_COUNT ? (uint8_t)(base + 1) : EYE_COUNT)  // 49..54 -> +1; 55 wraps to Matrix
+                  : (base >= ATLAS_BASE && base < ATLAS_END) ? (base + 1 < ATLAS_END ? (uint8_t)(base + 1) : LARK_ID)  // 49..54 -> +1; 55 -> Lark
+                  : (base == LARK_ID) ? EYE_COUNT                        // 56 wraps back to Matrix
                   : (uint8_t)(EYE_COUNT + ((base - EYE_COUNT + 1) % EFFECT_COUNT));
   }
 }
@@ -2863,6 +2864,10 @@ static void renderFermat(uint32_t now) {   // Fermat spiral of golden-angle dots
     float nw = wx*cw - wy*sw; wy = wx*sw + wy*cw; wx = nw;
   }
 }
+// Included here rather than with the headers at the top: it draws straight into the framebuffer, so
+// it needs `canvas` and SCREEN_RES, and both are declared below those includes.
+#include "lark_render.h"
+
 static void renderAtlas(int idx, uint32_t now) {
   atlasInit();
   if (!fxBuf) { fxBuf = (uint16_t*)malloc(96*96*2); if (!fxBuf) return; }   // ~18 KB (largest grid = julia 96^2), kept after first entry (swirlBuf precedent)
@@ -5214,7 +5219,7 @@ void loop() {
   if (gCarouselOpen) carouselBandRestore();   // undo last frame's strip BEFORE the renderer runs
 #endif
   if (id == PIPES_ID || id == SLIDESHOW_ID || id == BOIDS_ID || id == SWIRL_ID || id == TREATCAT_ID ||
-      id == GIF_ID || id == QR_ID || (id >= ATLAS_BASE && id < ANIM_COUNT)) {
+      id == GIF_ID || id == QR_ID || (id >= ATLAS_BASE && id < ATLAS_END)) {
     // no clear: pipes accumulate; slideshow keeps its blitted slide resident (loaded on change
     // only); boids fades its own trail (fadeFrame) instead of hard-clearing; swirl's upscale
     // writes every pixel; the GIF player needs frame persistence for disposal modes; QR clears
@@ -5231,7 +5236,8 @@ void loop() {
   else if (id == TREATCAT_ID)             renderTreatcat(now);      // id 46: interactive treat cat
   else if (id == GREETZ_ID)               renderGreetz(now);        // id 47: greetz scroller
   else if (id == GIF_ID)                  renderGif(now);           // id 48: animated GIFs off LittleFS
-  else if (id >= ATLAS_BASE && id < ANIM_COUNT) renderAtlas(id - ATLAS_BASE, now);   // ids 49..55: ported lab effects (before the AUDIO_BASE catch-all)
+  else if (id >= ATLAS_BASE && id < ATLAS_END) renderAtlas(id - ATLAS_BASE, now);   // ids 49..55: ported lab effects (before the AUDIO_BASE catch-all)
+  else if (id == LARK_ID)                 renderLark(now);          // id 56: the measured Lark clone
   else if (id == DEBUG_ID)                renderSensorDebug(now);   // id 42: dev sensor screen
 #if OCELLUS_AUDIO
   else if (id == AUDIO_DEBUG_ID)          renderAudioDebug(now);    // id 43: dev ESP-NOW/audio telemetry

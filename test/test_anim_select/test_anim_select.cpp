@@ -16,8 +16,9 @@ void test_next_of_all_when_mask_empty() {
     TEST_ASSERT_EQUAL_UINT8(47, nextFavorite(0, 46));   // 46 (treatcat) -> 47 (Greetz)
     TEST_ASSERT_EQUAL_UINT8(48, nextFavorite(0, 47));   // 47 (Greetz) -> 48 (GIFs)
     TEST_ASSERT_EQUAL_UINT8(49, nextFavorite(0, 48));   // 48 (GIFs) -> 49 (first ported lab effect)
-    TEST_ASSERT_EQUAL_UINT8(55, nextFavorite(0, 54));   // 54 -> 55 (Fermat Spiral, last playable)
-    TEST_ASSERT_EQUAL_UINT8(0,  nextFavorite(0, 55));   // 55 (last) -> wraps to 0
+    TEST_ASSERT_EQUAL_UINT8(55, nextFavorite(0, 54));   // 54 -> 55 (Fermat Spiral, last atlas effect)
+    TEST_ASSERT_EQUAL_UINT8(56, nextFavorite(0, 55));   // 55 -> 56 (Lark Eyes, last playable)
+    TEST_ASSERT_EQUAL_UINT8(0,  nextFavorite(0, 56));   // 56 (last) -> wraps to 0
 }
 void test_next_skips_to_set_bit() {
     uint32_t mask = (1u << 4) | (1u << 17);
@@ -35,7 +36,8 @@ void test_single_favorite_returns_itself() {
 void test_prev_of_all_when_mask_empty() {
     TEST_ASSERT_EQUAL_UINT8(0,  prevFavorite(0, 1));    // 1 -> 0
     TEST_ASSERT_EQUAL_UINT8(29, prevFavorite(0, 30));   // 30 -> 29
-    TEST_ASSERT_EQUAL_UINT8(55, prevFavorite(0, 0));    // 0 -> wraps to 55 (Fermat Spiral, last playable)
+    TEST_ASSERT_EQUAL_UINT8(56, prevFavorite(0, 0));    // 0 -> wraps to 56 (Lark Eyes, last playable)
+    TEST_ASSERT_EQUAL_UINT8(55, prevFavorite(0, 56));   // 56 -> 55 (Fermat Spiral)
     TEST_ASSERT_EQUAL_UINT8(54, prevFavorite(0, 55));   // 55 -> 54
     TEST_ASSERT_EQUAL_UINT8(48, prevFavorite(0, 49));   // 49 (first ported) -> 48 (GIFs)
     TEST_ASSERT_EQUAL_UINT8(47, prevFavorite(0, 48));   // 48 (GIFs) -> 47 (Greetz)
@@ -54,7 +56,7 @@ void test_prev_single_favorite_returns_itself() {
 }
 void test_step_walks_n_detents() {
     TEST_ASSERT_EQUAL_UINT8(5,  stepFavorite(0, 0, 5));    // 5 detents CW from 0
-    TEST_ASSERT_EQUAL_UINT8(55, stepFavorite(0, 0, -1));   // 1 detent CCW from 0 wraps to 55 (Fermat Spiral, last playable)
+    TEST_ASSERT_EQUAL_UINT8(56, stepFavorite(0, 0, -1));   // 1 detent CCW from 0 wraps to 56 (Lark Eyes, last playable)
     TEST_ASSERT_EQUAL_UINT8(7,  stepFavorite(0, 7, 0));    // no movement -> unchanged
     uint64_t mask = (1ull << 4) | (1ull << 17);
     TEST_ASSERT_EQUAL_UINT8(17, stepFavorite(mask, 0, 2));   // 0 -> 4 -> 17
@@ -123,8 +125,9 @@ void test_resolve_startup_modes_and_clamp() {
     TEST_ASSERT_EQUAL_UINT8(47, resolveStartupId("fixed", 47, 3, 15));  // Greetz playable
     TEST_ASSERT_EQUAL_UINT8(48, resolveStartupId("fixed", 48, 3, 15));  // GIFs playable
     TEST_ASSERT_EQUAL_UINT8(49, resolveStartupId("fixed", 49, 3, 15));  // first ported lab effect playable
-    TEST_ASSERT_EQUAL_UINT8(55, resolveStartupId("fixed", 55, 3, 15));  // Fermat Spiral (last playable)
-    TEST_ASSERT_EQUAL_UINT8(0,  resolveStartupId("fixed", 56, 3, 15));  // unknown id (past the atlas block) -> 0
+    TEST_ASSERT_EQUAL_UINT8(55, resolveStartupId("fixed", 55, 3, 15));  // Fermat Spiral (last atlas effect)
+    TEST_ASSERT_EQUAL_UINT8(56, resolveStartupId("fixed", 56, 3, 15));  // Lark Eyes (last playable)
+    TEST_ASSERT_EQUAL_UINT8(0,  resolveStartupId("fixed", 57, 3, 15));  // unknown id (past the last playable) -> 0
     TEST_ASSERT_EQUAL_UINT8(0,  resolveStartupId("fixed", DEBUG_ID, 3, 15));  // debug never boots
     TEST_ASSERT_EQUAL_UINT8(0,  resolveStartupId("fixed", 99, 3, 15));  // out-of-range -> 0
 }
@@ -135,7 +138,7 @@ void test_resolve_startup_modes_and_clamp() {
 void test_resume_with_nothing_stored_falls_back_to_fixed() {
     TEST_ASSERT_EQUAL_UINT8(47, resolveStartupId("resume", 47, 0xFF, 15));  // blank NVS -> startupId
     TEST_ASSERT_EQUAL_UINT8(47, resolveStartupId("resume", 47, DEBUG_ID, 15));  // debug id stored -> startupId
-    TEST_ASSERT_EQUAL_UINT8(47, resolveStartupId("resume", 47, 56, 15));    // past the atlas block -> startupId
+    TEST_ASSERT_EQUAL_UINT8(47, resolveStartupId("resume", 47, 57, 15));    // past the last playable -> startupId
     TEST_ASSERT_EQUAL_UINT8(3,  resolveStartupId("resume", 47, 3, 15));     // a real stored pick still wins
     TEST_ASSERT_EQUAL_UINT8(0,  resolveStartupId("resume", 47, 0, 15));     // eye 0 is a legitimate resume
     // Both unusable -> 0. Nothing else is safe to land on.

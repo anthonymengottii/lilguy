@@ -240,10 +240,15 @@ void test_registry_is_self_consistent() {
 void test_greetz_id_is_reachable() {
   TEST_ASSERT_EQUAL_UINT8(47, GREETZ_ID);
   TEST_ASSERT_TRUE(isPlayableId(GREETZ_ID));
-  // Greetz is no longer the last id -- the ported lab effects (49..55) are. ANIM_COUNT tracks whatever is.
-  TEST_ASSERT_EQUAL_INT(ATLAS_BASE + ATLAS_COUNT, ANIM_COUNT);
+  // Greetz is no longer the last id, and neither is the atlas block -- Lark Eyes (56) is.
+  // The atlas keeps its OWN bound so that appending an effect above it cannot widen the
+  // `id >= ATLAS_BASE && id < ATLAS_END` dispatch and index ATLAS[] out of bounds.
+  TEST_ASSERT_EQUAL_INT(ATLAS_BASE + ATLAS_COUNT, ATLAS_END);
+  TEST_ASSERT_EQUAL_INT(LARK_ID + 1, ANIM_COUNT);
+  TEST_ASSERT_TRUE_MESSAGE(ATLAS_END <= LARK_ID, "the atlas block must stay below the Lark id");
   TEST_ASSERT_TRUE(isPlayableId(GIF_ID));
-  TEST_ASSERT_TRUE(isPlayableId(ATLAS_BASE + ATLAS_COUNT - 1));  // 55 = Fermat Spiral, the new last playable
+  TEST_ASSERT_TRUE(isPlayableId(ATLAS_END - 1));  // 55 = Fermat Spiral, last atlas effect
+  TEST_ASSERT_TRUE(isPlayableId(LARK_ID));        // 56 = Lark Eyes, the new last playable
   // ids already in the field must not have moved
   TEST_ASSERT_EQUAL_UINT8(38, AUDIO_BASE);
   TEST_ASSERT_EQUAL_UINT8(42, DEBUG_ID);

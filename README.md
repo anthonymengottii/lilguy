@@ -70,7 +70,8 @@ decides to look away from you.
 Name Spiral, Starfield, Mystify, DVD, Pipes, Fractal, Swirl — plus a physics-and-creative set: Fluid
 (tilt-driven), Yin-Yang, Wormhole, Toasters, Boids, Garden Eels, and seven ports from a
 creative-coding lab: Julia, Interference, Munching Squares, Wireframe Globe, Rose Window, Polar
-Rose, Fermat Spiral.
+Rose, Fermat Spiral — and **Lark Eyes**, the measured clone of hesjustalittleguy.com's eyes, which
+follow your finger.
 
 **Interactive** — Slideshow (your images), QR (your code), GIFs (your clips), and **treatcat**, a
 little cat you tap to feed.
@@ -138,6 +139,11 @@ Sources live at the repo root — `src_dir = .` — not in `src/`.
 | `config_store.*` | NVS persistence (namespace `ocellus`) |
 | `config.html` | the Web Serial config page, self-contained |
 | `lark_raster.h` | filled cubic Beziers with clipping and hole-punching — the drawing GFX has no primitive for |
+| `lark_data.h` | reader for the packed scene data (hand-written; not the generated array) |
+| `lark_data_blob.h` | the packed scene data as a C array — **generated** by `tools/lark_pack.py` |
+| `lark.h` | the runtime: curves, path morphs, turn, lift, convergence |
+| `lark_scene.h` | draws one whole state with the gaze applied |
+| `lark_render.h` | the firmware mode: touch to gaze, and the frame |
 | `web-sim/` | the Lark eye runtime in the browser, and the harnesses that measure it |
 
 `config.*`, `protocol.*`, `palette.*`, and `audio.*` are deliberately Arduino-free, so the `native`
@@ -147,9 +153,12 @@ env compiles and tests them on a host. Keep them that way — it's why there are
 **The eyes from hesjustalittleguy.com.** `web-sim/` runs that site's own animation data — 36 states
 and 15 clips — in a browser, reproducing it to 97% mean overlap against the live original, measured
 by Playwright harnesses that live alongside it (`npm run measure:iou`, `measure:gaze`,
-`measure:blink`). It is being ported to this firmware, and while that is underway it is also the
-reference the port is checked against: `lark_raster.h`'s tests assert figures the browser actually
-draws rather than numbers picked by hand. `web-sim/README.md` documents the format, which is
+`measure:blink`). It now runs on the hardware too, as **Lark Eyes** (id 56), drawn by
+an own scanline rasteriser rather than by GFX primitives, with the scene data packed to 14KB and
+embedded in the application image. web-sim remains the reference the port is checked against: the
+`test_lark_*` suites assert figures the browser actually draws rather than numbers picked by hand,
+and no constant may be retuned to make the panel look better — they were measured against the live
+original with instruments the firmware does not have. Measure in web-sim first. `web-sim/README.md` documents the format, which is
 undocumented anywhere else and was decoded from the data.
 
 **Adding an effect:** append an entry to `ANIMS[]` in `animations.h` with a fresh id above the
@@ -158,6 +167,12 @@ continue *above* the pinned audio (38–41) and debug (42–44) blocks at 45+. T
 never move — units in the field have them in saved configs — so the id space has holes, and
 membership is tested with `isPlayableId()` / `animIdKnown()`, never `id < ANIM_COUNT`. The config
 page reads the registry over serial, so it picks up the new mode with no edits.
+
+A block of consecutive ids (like the atlas effects, 49–55) must be dispatched against **its own**
+end constant — `id >= ATLAS_BASE && id < ATLAS_END` — never against `ANIM_COUNT`. Bounding it by
+`ANIM_COUNT` works until the next id is added, at which point the range silently widens and indexes
+the block's table past its end. That is what `ATLAS_END` exists for, and what `test_lark_mode`
+guards.
 
 **Things that will bite you:**
 

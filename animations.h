@@ -32,16 +32,21 @@ constexpr uint8_t GREETZ_ID = 47;     // demoscene greetz scroller
 constexpr uint8_t GIF_ID    = 48;     // animated GIFs from LittleFS
 constexpr uint8_t ATLAS_BASE = 49;    // id 49: first ported creative-coding lab effect (atlas.html catalog)
 constexpr int ATLAS_COUNT  = 7;       // ids 49..55: Julia, Interference, Munching Squares, Wireframe Globe, Rose Window, Polar Rose, Fermat Spiral
-constexpr int ANIM_COUNT   = ATLAS_BASE + ATLAS_COUNT;   // = 56; one PAST the highest playable id (55). An id BOUND, not a count (42..44 are holes; next effect -> 56+)
+constexpr int ATLAS_END    = ATLAS_BASE + ATLAS_COUNT;   // = 56; one PAST the last atlas id. The atlas block's OWN bound --
+                                                         // dispatch tests `id < ATLAS_END`, never `id < ANIM_COUNT`, so appending
+                                                         // an effect above it cannot widen the range and index ATLAS[] out of bounds.
+constexpr uint8_t LARK_ID  = 56;      // Lark eyes: the measured clone of hesjustalittleguy, drawn by lark_scene.h
+constexpr int ANIM_COUNT   = LARK_ID + 1;   // = 57; one PAST the highest playable id (56). An id BOUND, not a count (42..44 are holes; next effect -> 57+)
 constexpr uint64_t PLAYABLE_MASK = ((1ull << (EYE_COUNT + EFFECT_COUNT)) - 1)
                                  | (AUDIO_COUNT ? ((1ull << AUDIO_COUNT) - 1) << AUDIO_BASE : 0)
                                  | (1ull << SWIRL_ID)
                                  | (1ull << TREATCAT_ID)
                                  | (1ull << GREETZ_ID)
                                  | (1ull << GIF_ID)
-                                 | (((1ull << ATLAS_COUNT) - 1) << ATLAS_BASE);   // ids 49..55
+                                 | (((1ull << ATLAS_COUNT) - 1) << ATLAS_BASE)    // ids 49..55
+                                 | (1ull << LARK_ID);                             // id 56 -- 7 bits of headroom left in the u64
 inline bool isPlayableId(int id) { return id >= 0 && id < 64 && ((PLAYABLE_MASK >> id) & 1); }
-constexpr int PLAYABLE_ENTRY_COUNT = EYE_COUNT + EFFECT_COUNT + AUDIO_COUNT + 4 + ATLAS_COUNT;  // +4 = Swirl/treatcat/Greetz/GIFs (45..48), +ATLAS_COUNT ported lab effects (49..55)
+constexpr int PLAYABLE_ENTRY_COUNT = EYE_COUNT + EFFECT_COUNT + AUDIO_COUNT + 4 + ATLAS_COUNT + 1;  // +4 = Swirl/treatcat/Greetz/GIFs (45..48), +ATLAS_COUNT ported lab effects (49..55), +1 = Lark eyes (56)
 constexpr int DEBUG_COUNT  = OCELLUS_AUDIO ? 3 : 1;   // dev-only screens; audio off = sensor debug only
 constexpr uint8_t DEBUG_ID = 42;                          // sensor debug -- pinned in every flavor, reached via anim cmd / flash.py --anim (not in the button cycle)
 #if OCELLUS_AUDIO
@@ -104,6 +109,10 @@ static const AnimInfo ANIMS[REGISTRY_COUNT] = {
   {(uint8_t)(ATLAS_BASE+4), "Rose Window",     "effect"},
   {(uint8_t)(ATLAS_BASE+5), "Polar Rose",      "effect"},
   {(uint8_t)(ATLAS_BASE+6), "Fermat Spiral",   "effect"},
+  // id 56 -- the Lark eyes. Grouped "effect", not "eye", because the button cycle reaches the eye
+  // group by the contiguous arithmetic `base < EYE_COUNT` over ids 0..12; an id up here is not part
+  // of that run and would never be cycled to as one.
+  {LARK_ID, "Lark Eyes", "effect"},
   {DEBUG_ID, "Sensor Debug", "debug"},   // the constant, not a literal
 #if OCELLUS_AUDIO
   {AUDIO_DEBUG_ID, "Audio Debug", "debug"},
