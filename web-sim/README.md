@@ -64,6 +64,39 @@ decisão de fidelidade:
   1.0 seleciona o conjunto saudável (`blink`/`blink2`/`blink3`). É uma **escolha**, documentada como
   escolha: nenhum dado diz o que o sensor 15 mede.
 
+## O editor de clipes
+
+`editor/` é uma aplicação React+Vite separada para **tocar e editar as animações**: escolhe um dos
+15 clipes, toca, arrasta o playhead, arrasta keyframes na timeline, edita valores e curvas, cria
+clipes novos, desfaz e refaz.
+
+```sh
+npm --prefix editor install     # uma vez
+npm --prefix editor run dev     # http://localhost:8795
+```
+
+Ele **importa o `lark.js` daqui**, não uma cópia. Um clipe que toca certo no editor toca certo na
+página do artifact e, pelo port em C++, no aparelho — um visualizador escrito "parecido com" o
+runtime divergiria dele na primeira mudança, e a divergência seria invisível.
+
+Por que em pasta própria, com `package.json` próprio: o `web-sim` não tem **nenhuma** dependência de
+runtime, e isso vale manter, porque ele é o instrumento contra o qual o firmware é medido. Um editor
+que quebre não pode quebrar o instrumento. Ele alcança para fora só em dois lugares, ambos leitura:
+`../lark.js` e o `anim_data.json` do `lilguy-fork`.
+
+**O que ele não edita:** as lanes `p`, que carregam os contornos de pálpebra como 24 números de
+Bézier por keyframe. Elas aparecem na timeline e podem ser movidas no *tempo* — retimar uma piscada
+é uma edição de verdade —, mas a forma é fixa. Editá-la bem exige um editor de curvas; editá-la mal
+(escalar o contorno inteiro, por exemplo) produziria formas que a autoria original nunca fez, e
+depois de exportadas seriam indistinguíveis do dado real.
+
+**Como o trabalho sai daqui:** `exportar JSON` baixa um `anim_data.json` com a mesma forma do
+arquivo do site, que o `tools/lark_pack.py` lê sem conversão. Para chegar no aparelho: gerar o
+binário e regravar o firmware. Nada no editor escreve no hardware.
+
+Coberto por `test/editor.spec.js`, cujo teste central não é "renderiza" e sim **"uma edição chega ao
+canvas"** — a falha que um screenshot não pega é um editor que responde e não muda nada.
+
 ## Arquivos
 
 | arquivo | o que é |
@@ -74,6 +107,7 @@ decisão de fidelidade:
 | `anim_data.js` | `anim_data.json` do site, como `const ANIM_DATA` — 36 estados, 15 clipes |
 | `behavior_data.js` | `behavior_data.json` do site, como `const BEHAVIOR_DATA` — 23 regras |
 | `lilguy.js` | motor medido, um estado |
+| `editor/` | editor de clipes (React+Vite, dependências próprias) — importa o `lark.js` daqui |
 | `index.html` + `main.js` | página do motor medido |
 | `artifact.html` | versão publicada do motor medido, tudo num arquivo |
 | `tools/build-artifact.js` | gera `lark-artifact.html` a partir dos módulos |

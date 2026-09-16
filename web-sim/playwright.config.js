@@ -22,5 +22,14 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 20000,
     },
+    // The editor is a separate Vite app with its own dependencies. Started here so `npm test` covers
+    // it from a fresh clone, but its install is NOT this package's problem -- the spec skips itself
+    // with a clear message when editor/node_modules is missing, rather than failing the whole run.
+    {
+      command: 'npm --prefix editor run dev',
+      url: 'http://localhost:8795/',
+      reuseExistingServer: true,
+      timeout: 40000,
+    },
   ],
 });

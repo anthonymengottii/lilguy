@@ -1,0 +1,168 @@
+/* Editor chrome. Follows the artifact page's palette so the two do not look like different projects,
+   but laid out for a workbench rather than a showcase: two columns, the preview pinned on the left
+   while the timeline and inspector scroll on the right. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f6f6f4;
+  --fg: #1a1a1a;
+  --muted: #6b6b66;
+  --line: #dedddA;
+  --panel: #ffffff;
+  --stage: #0f0f10;
+  --accent: #3b6ea5;
+  --danger: #a5453b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121213;
+    --fg: #ececea;
+    --muted: #8f8f89;
+    --line: #2a2a2c;
+    --panel: #1a1a1c;
+    --stage: #000000;
+    --accent: #7aa7d9;
+    --danger: #d98a7a;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.app { max-width: 1200px; margin: 0 auto; padding: 1.5rem 16px 3rem; }
+header h1 { font-size: 1.2rem; margin: 0 0 .25rem; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: .86rem; margin: 0 0 1.2rem; }
+.sub a { color: inherit; }
+.dirty { color: var(--accent); }
+
+.columns { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 860px) { .columns { grid-template-columns: minmax(0, 1fr); } }
+.left { position: sticky; top: 1rem; }
+@media (max-width: 860px) { .left { position: static; } }
+
+/* The panel is a disc, so its surround is one too — a rounded rectangle behind a round screen reads
+   as a screenshot of the drawing rather than as the device. */
+.bezel {
+  border-radius: 50%;
+  background: var(--stage);
+  border: 1px solid var(--line);
+  padding: 10px;
+  display: grid;
+  place-items: center;
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+.bezel canvas {
+  width: 100%; height: auto; aspect-ratio: 1; display: block;
+  touch-action: none; border-radius: 50%;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .9rem;
+  margin-bottom: .9rem;
+}
+
+.transport { display: flex; align-items: center; gap: .6rem; margin-top: 1rem; }
+.transport input[type="range"] { flex: 1; min-width: 0; }
+.transport .time { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+button.play { font-size: 1rem; width: 2.2rem; }
+
+.row { display: flex; gap: .5rem; align-items: center; }
+.row.wrap { flex-wrap: wrap; }
+.row + .row { margin-top: .6rem; }
+.grow { flex: 1; min-width: 8rem; }
+
+.field { display: flex; gap: .45rem; align-items: center; margin-bottom: .5rem; }
+.field > span:first-child, .label {
+  font-size: .74rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); min-width: 5.5rem;
+}
+.field.inline { margin-bottom: 0; }
+.field.inline > span:first-child { min-width: auto; }
+.field.check > span { min-width: auto; text-transform: none; letter-spacing: 0; font-size: .82rem; }
+.field input[type="number"] { width: 6rem; }
+
+input, select {
+  font: inherit; font-size: .85rem; padding: .3rem .45rem; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--fg); min-width: 0;
+}
+input[type="color"] { width: 2.4rem; height: 1.9rem; padding: 2px; }
+input[type="checkbox"] { width: auto; }
+
+button, .filebtn {
+  font: inherit; font-size: .82rem; padding: .32rem .7rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--fg); white-space: nowrap;
+}
+button:hover:not(:disabled), .filebtn:hover { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+button.danger { color: var(--danger); }
+.filebtn { display: inline-block; }
+.filebtn input { display: none; }
+
+.hint { color: var(--muted); font-size: .84rem; margin: .5rem 0 0; }
+.hint.small { font-size: .78rem; }
+.hint code, .warn code { font-size: .95em; }
+.warn {
+  margin: .6rem 0 0; padding: .6rem .7rem; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--bg);
+  color: var(--muted); font-size: .8rem;
+}
+.warn b { color: var(--fg); }
+
+/* ---- timeline ---- */
+
+.timeline { display: flex; flex-direction: column; gap: .3rem; }
+.ruler {
+  position: relative; height: 1.3rem; margin-left: 9.5rem;
+  display: flex; justify-content: space-between;
+  font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums;
+  cursor: pointer; user-select: none;
+}
+.lane { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); align-items: center; gap: .5rem; }
+.lane-name {
+  display: flex; flex-direction: column; gap: 1px; font-size: .78rem; overflow: hidden;
+}
+.lane-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane-name .kp { color: var(--muted); font-size: .72rem; }
+.lane-name .ro { color: var(--muted); font-size: .66rem; opacity: .8; }
+
+.track {
+  position: relative; height: 1.7rem; border-radius: 7px;
+  background: var(--bg); border: 1px solid var(--line); cursor: pointer;
+}
+.key {
+  position: absolute; top: 50%; width: 11px; height: 11px; padding: 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 2px; border: 1px solid var(--muted); background: var(--panel);
+  cursor: grab; touch-action: none;
+}
+.key:hover { border-color: var(--fg); }
+.key.sel { background: var(--accent); border-color: var(--accent); }
+.key.ro { border-style: dashed; opacity: .75; }
+.key:active { cursor: grabbing; }
+
+.playhead {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent);
+  pointer-events: none; opacity: .9;
+}
+.playhead.thin { width: 1px; opacity: .5; }
+
+.addlane { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+
+/* ---- inspector ---- */
+
+.inspector .insp-head {
+  display: flex; gap: .4rem; align-items: baseline; margin-bottom: .7rem;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--line);
+}
+.inspector .insp-head .kp { color: var(--muted); font-size: .78rem; }
+.inspector .row { margin-top: .8rem; }

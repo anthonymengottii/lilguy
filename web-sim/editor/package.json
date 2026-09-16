@@ -1,0 +1,20 @@
+{
+  "name": "lark-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Authoring tool for Lark clips: play them, retime them, edit their numeric lanes, export anim_data.json for tools/lark_pack.py.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.7"
+  }
+}
