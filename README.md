@@ -30,6 +30,7 @@ Configured over USB, no reflash.
 | swipe left / right | previous / next favorite |
 | swipe up | open the **carousel** — a scrollable strip to scrub straight to any mode |
 | tap | wake, jitter the eye, or feed the cat (treatcat mode) |
+| touch and drag | Lark Eyes follow your finger |
 
 It sleeps on its own after a few idle minutes. Set `sleepMin` to `0` if you'd rather it never did.
 
@@ -66,12 +67,24 @@ Every eye theme has moods. It gets curious, skeptical, calm, or drowsy depending
 how long you've been watching, and the mood drives gaze, lid position, pupil size, and how often it
 decides to look away from you.
 
+**Lark Eyes** — a second pair, cloned from [hesjustalittleguy.com](https://hesjustalittleguy.com).
+Two eyes that follow your finger with real foreshortening: the eye you turn away from narrows and
+the pair converges, drawn from that site's actual animation data along its own Bézier outlines
+rather than approximations of them. Measured rather than eyeballed — see
+[web-sim](#the-eyes-from-hesjustalittleguycom) below.
+
+On the device it currently holds one open pose and tracks your finger; the blink and expression
+clips are ported and tested (`test_lark_runtime`) but nothing drives them yet — that is the
+behaviour layer, still to come. When it lands it will still be short of the real thing: the site's
+behaviour rules name **35 clips that exist in no file it distributes** (`dance_hp`, `spin_h`,
+`curious_3`, `heart_sprites`…), confirmed absent from the JSON, from the live site's own `.bin`, and
+from the published fork. Those 15 clips are all there are.
+
 **Effects** — Matrix, Cube, Plasma, Tesseract, Tunnel, Weave, Sonar, Squares, Bars, Ripple, Spokes,
 Name Spiral, Starfield, Mystify, DVD, Pipes, Fractal, Swirl — plus a physics-and-creative set: Fluid
 (tilt-driven), Yin-Yang, Wormhole, Toasters, Boids, Garden Eels, and seven ports from a
 creative-coding lab: Julia, Interference, Munching Squares, Wireframe Globe, Rose Window, Polar
-Rose, Fermat Spiral — and **Lark Eyes**, the measured clone of hesjustalittleguy.com's eyes, which
-follow your finger.
+Rose, Fermat Spiral.
 
 **Interactive** — Slideshow (your images), QR (your code), GIFs (your clips), and **treatcat**, a
 little cat you tap to feed.
@@ -103,7 +116,14 @@ PlatformIO, from its venv:
 ~/.platformio/penv/bin/pio run -e esp32-s3-touch-128     # build (Waveshare — the ship board)
 ~/.platformio/penv/bin/pio run -e esp32-s3               # build (bare S3 devkit — bench rig)
 ~/.platformio/penv/bin/pio run -e esp32-c3-devkitm-1     # build (legacy C3)
-~/.platformio/penv/bin/pio test -e native                # host unit tests
+~/.platformio/penv/bin/pio test -e native                # host unit tests (33 suites, 432 cases)
+```
+
+The Lark scene data is generated, not hand-maintained. After touching `anim_data.json` or the
+packer, regenerate both the blob and the C array the firmware compiles in:
+
+```sh
+python tools/lark_pack.py                                # -> lark_data.bin + lark_data_blob.h
 ```
 
 On Windows, or anywhere PlatformIO came from pip rather than its own installer, `python -m
@@ -138,32 +158,52 @@ Sources live at the repo root — `src_dir = .` — not in `src/`.
 | `audio.*` | Sensory Bridge wire decode |
 | `config_store.*` | NVS persistence (namespace `ocellus`) |
 | `config.html` | the Web Serial config page, self-contained |
-| `lark_raster.h` | filled cubic Beziers with clipping and hole-punching — the drawing GFX has no primitive for |
-| `lark_data.h` | reader for the packed scene data (hand-written; not the generated array) |
-| `lark_data_blob.h` | the packed scene data as a C array — **generated** by `tools/lark_pack.py` |
-| `lark.h` | the runtime: curves, path morphs, turn, lift, convergence |
-| `lark_scene.h` | draws one whole state with the gaze applied |
-| `lark_render.h` | the firmware mode: touch to gaze, and the frame |
+| `lark_*.h` | the Lark Eyes port — five layers, [detailed below](#the-eyes-from-hesjustalittleguycom) |
+| `lark_data_blob.h` | the packed scene data as a C array — **generated**, do not edit |
 | `web-sim/` | the Lark eye runtime in the browser, and the harnesses that measure it |
 
 `config.*`, `protocol.*`, `palette.*`, and `audio.*` are deliberately Arduino-free, so the `native`
-env compiles and tests them on a host. Keep them that way — it's why there are tests at all.
-`lark_raster.h` is header-only for the same reason.
+env compiles and tests them on a host. Keep them that way — it's why there are tests at all. The
+Lark layers below `lark_render.h` are header-only and Arduino-free for the same reason: the
+rasteriser is the one place where a wrong number disappears silently, so it is proved on the PC
+where a bad outline is a red test, not a crooked eye nobody can explain.
 
-**The eyes from hesjustalittleguy.com.** `web-sim/` runs that site's own animation data — 36 states
-and 15 clips — in a browser, reproducing it to 97% mean overlap against the live original, measured
-by Playwright harnesses that live alongside it (`npm run measure:iou`, `measure:gaze`,
-`measure:blink`). It now runs on the hardware too, as **Lark Eyes** (id 56), drawn by
-an own scanline rasteriser rather than by GFX primitives, with the scene data packed to 14KB and
-embedded in the application image. web-sim remains the reference the port is checked against: the
-`test_lark_*` suites assert figures the browser actually draws rather than numbers picked by hand,
-and no constant may be retuned to make the panel look better — they were measured against the live
-original with instruments the firmware does not have. Measure in web-sim first. `web-sim/README.md` documents the format, which is
+### The eyes from hesjustalittleguy.com
+
+`web-sim/` runs that site's own animation data — 36 states and 15 clips — in a browser, reproducing
+it to **0.972 mean IoU, 0.913 worst case, across all 36 states**. That number is measured, not
+claimed: Playwright harnesses next to it drive both the clone and the live site and compare pixels
+(`npm run measure:iou`, `measure:gaze`, `measure:blink`), and the per-state figures are checked in
+at `web-sim/tools/baseline/states.json`. The format is documented in `web-sim/README.md`; it is
 undocumented anywhere else and was decoded from the data.
+
+It now runs on the hardware too, as **Lark Eyes** (id 56). The port is five headers:
+
+| layer | what it does |
+|---|---|
+| `lark_raster.h` | scanline fill for closed cubic Béziers — clipping and hole-punching fall out of the parity rule |
+| `lark_data.h` | reads the packed scene data in place, no allocation |
+| `lark.h` | the runtime: curve easing, path morphs, turn, lift, convergence |
+| `lark_scene.h` | draws one whole state with the gaze applied |
+| `lark_render.h` | the firmware mode: touch to gaze, and the frame |
+
+GFX has no filled-Bézier primitive and no path clipping, and the pupil is clipped by an animated
+lid in every state and punched as a *hole* in 20 of the 36 — hence the own rasteriser. The scene
+data is packed to 14KB by `tools/lark_pack.py` and embedded in the application image rather than
+LittleFS: that partition is shared with the GIF sets, and `uploadfs` writes a whole directory, so
+loading a GIF set would otherwise delete the eyes and vice versa.
+
+**web-sim stays the reference the port is measured against.** The `test_lark_*` suites assert
+figures the browser actually draws — ink area, eye extents, the gap between the pair — rather than
+numbers picked by hand. The corollary is the rule that matters most here: **do not retune a constant
+to make the panel look better.** Every one was measured against the live original with instruments
+the firmware does not have. If something looks wrong on the device, reproduce it in web-sim and
+measure it there.
 
 **Adding an effect:** append an entry to `ANIMS[]` in `animations.h` with a fresh id above the
 current top, and wire a branch into `loop()`'s dispatch. The eye/effect ids run 0–37, then effects
-continue *above* the pinned audio (38–41) and debug (42–44) blocks at 45+. Those pinned ids must
+continue *above* the pinned audio (38–41) and debug (42–44) blocks at 45+; the top is currently 56
+(Lark Eyes), so the next one takes 57. Those pinned ids must
 never move — units in the field have them in saved configs — so the id space has holes, and
 membership is tested with `isPlayableId()` / `animIdKnown()`, never `id < ANIM_COUNT`. The config
 page reads the registry over serial, so it picks up the new mode with no edits.
