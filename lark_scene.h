@@ -117,12 +117,27 @@ inline void pathExtent(const float* p, int n, float* cx, float* cy, float* w, fl
   *h = y1 - y0;
 }
 
-// Draw one state. `clipOverride` lets a caller substitute an animated lid — during a blink the
-// pupils clip to the eye's CURRENT outline, not its rest pose, or they show through a shut eye.
+// Supplies a node's animated channels, when something is driving them. `lark_behavior.h` implements
+// this; with no source the scene draws its rest pose, which is what the tests below it use.
+//
+// A function pointer rather than a base class: the scene is drawn from an interrupt-free render
+// loop on a device with no RTTI, and a vtable here buys nothing.
+// Nodes are addressed by kind and side, not by name: the packed data drops names, and for this
+// data kind+side is exact (the only named lane objects are eye_l/r and pup_l/r).
+typedef void (*ChannelSource)(uint8_t kind, float sideSign, const float* rest, int restCount,
+                              Channels& out, void* ctx);
+
+// Draw one state. The lid paths are supplied by the caller rather than read here, because during a
+// blink the pupils must clip to the eye's CURRENT outline, not its rest pose, or they show through
+// a shut eye.
 struct Scene {
   const Reader* data = nullptr;
   uint16_t stateIndex = 0;
   uint16_t background = 0;
+
+  // Animation. Both null (the default) draws the state at rest.
+  ChannelSource channels = nullptr;
+  void* channelCtx = nullptr;
 
   // Per-eye lid outlines for this frame, in scene coordinates. Filled by the caller from the
   // runtime when a clip is driving `p`; otherwise the rest poses are used.
@@ -163,6 +178,30 @@ struct Scene {
       float cx, cy, w, h;
       pathExtent(raw, n, &cx, &cy, &w, &h);
       float side = cx > g.pairCentreX ? 1.0f : -1.0f;
+
+      // The animation, if something is driving it. `p` REPLACES the outline (it is an absolute
+      // shape, already morphed against this node's rest pose by sampleLane); `t` and `s` are an
+      // offset and a scale applied about the node's own centre.
+      if (channels) {
+        Channels ch;
+        channels(node.kind, side, raw, n, ch, channelCtx);
+        if (ch.p.present && ch.p.pathCount) {
+          n = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
+          for (int i = 0; i < n; i++) raw[i] = ch.p.path[i];
+          pathExtent(raw, n, &cx, &cy, &w, &h);      // the morphed lid has its own box
+        }
+        if (ch.s.present) {
+          for (int i = 0; i < n; i += 2) {
+            raw[i]     = cx + (raw[i] - cx) * ch.s.v[0];
+            raw[i + 1] = cy + (raw[i + 1] - cy) * ch.s.v[1];
+          }
+        }
+        if (ch.t.present) {
+          for (int i = 0; i < n; i += 2) { raw[i] += ch.t.v[0]; raw[i + 1] += ch.t.v[1]; }
+          cx += ch.t.v[0];
+          cy += ch.t.v[1];
+        }
+      }
 
       // The eye this node belongs to carries the travel limits; a pupil has none of its own, so it
       // rides the eye's. Without that the pupil stays behind and reads as sliding in its socket.

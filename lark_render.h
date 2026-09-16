@@ -18,6 +18,7 @@
 
 #include <Arduino.h>
 #include "lark_scene.h"
+#include "lark_behavior.h"
 #include "lark_data_blob.h"   // generated: the packed scene data as a C array
 #include "touch.h"
 
@@ -139,8 +140,37 @@ static void larkUpdateLook() {
 // the host is not an S3.
 static uint32_t gLarkLastDrawUs = 0;
 
+// What decides which clip plays and when. Holds the running instances across frames.
+static lark::Behavior gLarkBehavior;
+static uint32_t gLarkNow = 0;    // the frame's timestamp, for the channel callback below
+
+// The bridge from the scene's per-node callback into the behaviour layer. A free function because
+// ChannelSource is a plain function pointer -- no vtable in the render path.
+static void larkChannelSource(uint8_t kind, float sideSign, const float* rest, int restCount,
+                              lark::Channels& out, void* ctx) {
+  ((lark::Behavior*)ctx)->channelsForNode(kind, sideSign, gLarkNow, rest, restCount, out);
+}
+
+// The lid each pupil clips to, for THIS frame. During a blink the pupil must clip to the eye's
+// current outline rather than its rest pose, or it shows through a shut eye. Recomputed per frame
+// because that outline is exactly what the blink animates.
+static void larkUpdateLids(uint32_t now) {
+  larkCollectLids();                 // rest poses first: the fallback when no clip drives `p`
+  lark::Channels ch;
+
+  gLarkBehavior.channelsForNode(lark::KIND_EYE, -1.0f, now, gLarkLidL, gLarkLidLCount, ch);
+  if (ch.p.present && ch.p.pathCount) {
+    gLarkLidLCount = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
+    for (int i = 0; i < gLarkLidLCount; i++) gLarkLidL[i] = ch.p.path[i];
+  }
+  gLarkBehavior.channelsForNode(lark::KIND_EYE, 1.0f, now, gLarkLidR, gLarkLidRCount, ch);
+  if (ch.p.present && ch.p.pathCount) {
+    gLarkLidRCount = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
+    for (int i = 0; i < gLarkLidRCount; i++) gLarkLidR[i] = ch.p.path[i];
+  }
+}
+
 static void renderLark(uint32_t now) {
-  (void)now;
   if (!larkLoad()) {
     canvas->setCursor(24, SCREEN_RES / 2);
     canvas->setTextColor(RED);
@@ -150,16 +180,28 @@ static void renderLark(uint32_t now) {
 
   larkUpdateLook();
 
+  // The behaviour layer sees the POINTER's look, because trigger 10 fires on the gaze moving, and
+  // the ambient bob it adds itself must not feed back into that.
+  gLarkBehavior.data = &gLarkReader;
+  gLarkBehavior.update(now, gLarkLookX, gLarkLookY);
+
+  gLarkNow = now;
+  larkUpdateLids(now);
+
   lark::Scene scene;
   scene.data = &gLarkReader;
   scene.stateIndex = gLarkState;
   scene.background = BLACK;
   scene.lidL = gLarkLidL; scene.lidLCount = gLarkLidLCount;
   scene.lidR = gLarkLidR; scene.lidRCount = gLarkLidRCount;
+  scene.channels = larkChannelSource;
+  scene.channelCtx = &gLarkBehavior;
 
+  // Clip and pointer ADD: `idle` rocks the look by +-0.12 forever, so taking the clip's value when
+  // present leaves the pointer suppressed and the gaze dead, and taking only the pointer drops the
+  // ambient bob. The reference does both at once.
   lark::Gaze g;
-  g.x = gLarkLookX;
-  g.y = gLarkLookY;
+  gLarkBehavior.lookFor(now, gLarkLookX, gLarkLookY, &g.x, &g.y);
 
   uint32_t t0 = micros();
   scene.draw(canvas->getFramebuffer(), SCREEN_RES, SCREEN_RES, g);

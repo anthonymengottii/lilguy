@@ -28,6 +28,42 @@ rodada de medição inteira — foi essa limitação que motivou o `lark.js`.
 Página: `index.html` + `main.js` · versão publicada: `artifact.html` em
 <https://claude.ai/code/artifact/c384d74b-840f-4fde-94ce-dfe256116786>
 
+## Esta pasta é o instrumento de medida do firmware
+
+O `lark.js` deixou de ser só uma réplica em navegador: ele foi **portado para o firmware do
+ocellus** e roda no hardware como o modo **Lark Eyes** (id 56), desenhado por um rasterizador
+scanline próprio num painel redondo de 240×240. O port vive na raiz do repo, em seis headers:
+
+| camada | o que faz |
+|---|---|
+| `lark_raster.h` | preenchimento scanline de Béziers cúbicas fechadas — recorte e buraco saem da regra de paridade |
+| `lark_data.h` | lê os dados empacotados no lugar, sem alocar |
+| `lark.h` | o runtime: curvas, morph de path, giro, lift, convergência |
+| `lark_scene.h` | desenha um estado inteiro com o olhar aplicado |
+| `lark_behavior.h` | decide qual clipe toca e quando — porta do `behavior.js` |
+| `lark_render.h` | o modo no firmware: toque vira olhar, e o quadro |
+
+**A relação entre as duas metades é de direção única: esta pasta mede, o firmware é medido.** Os
+números que o port afirma (área de tinta, extensão de cada olho, vão entre o par) são os que esta
+página desenha, capturados pelos harnesses daqui. A consequência é a regra que mais importa no port:
+
+> **Não reajustar constante nenhuma para o painel ficar bonito.** Todas foram medidas contra a
+> original com Playwright, instrumento que o firmware não tem. Se algo parecer errado no aparelho,
+> reproduzir aqui e medir aqui.
+
+Duas diferenças conhecidas entre o que roda aqui e o que roda lá, ambas por falta de dado e não por
+decisão de fidelidade:
+
+- **`rot` e `rot3d` não desenham no firmware.** Suas lanes miram `eyes`, `group_eye_l` e
+  `group_eye_r` — *grupos* — e o `tools/lark_pack.py` descarta os nomes dos nós, deixando-os
+  identificados por tipo e lado. Tipo+lado resolve `eye_l/r` e `pup_l/r` com exatidão (o que cobre
+  `idle`, os dois desvios de pupila, `pup_scale` e as três piscadas), mas não distingue um grupo de
+  outro. As regras disparam e se substituem corretamente; só não movem pixel.
+- **O sensor 15 é alimentado com 1.0 fixo no firmware.** Aqui ele nunca é alimentado, que é o que
+  reproduz a original não piscando sozinha. No aparelho isso deixaria os olhos sem piscar nunca, e
+  1.0 seleciona o conjunto saudável (`blink`/`blink2`/`blink3`). É uma **escolha**, documentada como
+  escolha: nenhum dado diz o que o sensor 15 mede.
+
 ## Arquivos
 
 | arquivo | o que é |
@@ -224,7 +260,7 @@ número é reproduzível com um comando.
 
 | | referência | runtime | comando |
 |---|---|---|---|
-| IoU dos 36 estados | — | **média 96,9%**, mín 91,1%, máx 99,7% | `npm run measure:iou` |
+| IoU dos 36 estados | — | **média 97,18%**, mín 91,30%, máx 99,76% | `npm run measure:iou` |
 | piscada fechada: espessura | 5,51px | **5,41px** | `npm run measure:blink` |
 | piscada fechada: desvio/coluna | 1,02 | **0,92** | idem |
 | piscada fechada: altura | 24px | **24px** | idem |

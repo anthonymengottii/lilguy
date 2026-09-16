@@ -73,12 +73,16 @@ the pair converges, drawn from that site's actual animation data along its own B
 rather than approximations of them. Measured rather than eyeballed — see
 [web-sim](#the-eyes-from-hesjustalittleguycom) below.
 
-On the device it currently holds one open pose and tracks your finger; the blink and expression
-clips are ported and tested (`test_lark_runtime`) but nothing drives them yet — that is the
-behaviour layer, still to come. When it lands it will still be short of the real thing: the site's
-behaviour rules name **35 clips that exist in no file it distributes** (`dance_hp`, `spin_h`,
-`curious_3`, `heart_sprites`…), confirmed absent from the JSON, from the live site's own `.bin`, and
-from the published fork. Those 15 clips are all there are.
+On the device it blinks on its own, the pupils drift inside the eyes, and the gaze rocks gently even
+with nothing touching — all of it driven from the site's own behaviour rules rather than invented
+timers.
+
+It is still short of the real thing, and the gap is the data, not the port: the site's behaviour
+rules name **35 clips that exist in no file it distributes** (`dance_hp`, `spin_h`, `curious_3`,
+`heart_sprites`…), confirmed absent from the JSON, from the live site's own `.bin`, and from the
+published fork. Of the 23 rules, five can run here, and two of those (`rot`, `rot3d`) fire correctly
+but draw nothing yet, because they target scene *groups* and the packer drops node names — see
+`lark_behavior.h`, which says so at the line that schedules them.
 
 **Effects** — Matrix, Cube, Plasma, Tesseract, Tunnel, Weave, Sonar, Squares, Bars, Ripple, Spokes,
 Name Spiral, Starfield, Mystify, DVD, Pipes, Fractal, Swirl — plus a physics-and-creative set: Fluid
@@ -116,7 +120,7 @@ PlatformIO, from its venv:
 ~/.platformio/penv/bin/pio run -e esp32-s3-touch-128     # build (Waveshare — the ship board)
 ~/.platformio/penv/bin/pio run -e esp32-s3               # build (bare S3 devkit — bench rig)
 ~/.platformio/penv/bin/pio run -e esp32-c3-devkitm-1     # build (legacy C3)
-~/.platformio/penv/bin/pio test -e native                # host unit tests (33 suites, 432 cases)
+~/.platformio/penv/bin/pio test -e native                # host unit tests (34 suites, 441 cases)
 ```
 
 The Lark scene data is generated, not hand-maintained. After touching `anim_data.json` or the
@@ -177,7 +181,7 @@ claimed: Playwright harnesses next to it drive both the clone and the live site 
 at `web-sim/tools/baseline/states.json`. The format is documented in `web-sim/README.md`; it is
 undocumented anywhere else and was decoded from the data.
 
-It now runs on the hardware too, as **Lark Eyes** (id 56). The port is five headers:
+It now runs on the hardware too, as **Lark Eyes** (id 56). The port is six headers:
 
 | layer | what it does |
 |---|---|
@@ -185,6 +189,7 @@ It now runs on the hardware too, as **Lark Eyes** (id 56). The port is five head
 | `lark_data.h` | reads the packed scene data in place, no allocation |
 | `lark.h` | the runtime: curve easing, path morphs, turn, lift, convergence |
 | `lark_scene.h` | draws one whole state with the gaze applied |
+| `lark_behavior.h` | decides which clip plays and when — the port of `behavior.js` |
 | `lark_render.h` | the firmware mode: touch to gaze, and the frame |
 
 GFX has no filled-Bézier primitive and no path clipping, and the pupil is clipped by an animated
