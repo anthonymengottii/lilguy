@@ -5,6 +5,7 @@ import LaneList from './LaneList';
 import KeyRuler from './KeyRuler';
 import Inspector from './Inspector';
 import CurveGraph from './CurveGraph';
+import ColourPanel from './ColourPanel';
 import { useEditorState } from './useEditorState';
 import * as C from './clipOps';
 import ANIM_DATA from '@data/anim_data.json';
@@ -153,9 +154,19 @@ export default function App() {
   // the groups here they cannot be authored at all.
   const nodeTree = useMemo(() => C.nodeTreeOf(data, stateId), [data, stateId]);
   const nodeNames = useMemo(() => nodeTree.map((n) => n.name), [nodeTree]);
+  // One selected object, shared by the tree, the stage and the colour panel. Clicking an eye on the
+  // stage and clicking it in the tree are the same act, so they must not be two states that can
+  // disagree.
   const [newObj, setNewObj] = useState('');
   const [newKp, setNewKp] = useState('t');
   useEffect(() => { if (!newObj && nodeNames.length) setNewObj(nodeNames[0]); }, [nodeNames, newObj]);
+
+  // Colour lives on the node inside the state, so the edit travels with the exported JSON.
+  const selectedNode = data.states?.[stateId]?.objs?.[newObj];
+  const selectedColour = selectedNode?.c;
+  const setColour = useCallback((hex) => {
+    apply((d) => C.setNodeColour(d, stateId, newObj, hex), `colour:${stateId}:${newObj}`);
+  }, [apply, stateId, newObj]);
 
   // ---- file ------------------------------------------------------------------------------------
 
@@ -315,19 +326,30 @@ export default function App() {
             <div className="section-head"><span>Objetos</span></div>
             <div className="section-body">
               <div className="tree">
-                {nodeTree.map(({ name, depth, isGroup }) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className={name === newObj ? 'sel' : ''}
-                    style={{ paddingLeft: `${0.35 + depth * 0.7}rem` }}
-                    onClick={() => setNewObj(name)}
-                    title={isGroup ? 'grupo — uma lane aqui move tudo que ele contém' : name}
-                  >
-                    <i className={dotClass(name)} />
-                    <span className={isGroup ? 'grp' : undefined}>{name}</span>
-                  </button>
-                ))}
+                {nodeTree.map(({ name, depth, isGroup }) => {
+                  const c = data.states[stateId]?.objs?.[name]?.c;
+                  const hole = !isGroup && C.isHole(c);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className={name === newObj ? 'sel' : ''}
+                      style={{ paddingLeft: `${0.35 + depth * 0.7}rem` }}
+                      onClick={() => setNewObj(name)}
+                      title={isGroup
+                        ? 'grupo — uma lane aqui move tudo que ele contém'
+                        : `${name} · ${hole ? 'buraco' : `#${c}`}`}
+                    >
+                      {/* The dot carries the node's ACTUAL colour, so the tree doubles as a legend.
+                          A hole has no colour to show, so it is drawn hollow. */}
+                      <i
+                        className={`dot${hole ? ' hole' : ''}`}
+                        style={!isGroup && !hole ? { background: `#${c}` } : undefined}
+                      />
+                      <span className={isGroup ? 'grp' : undefined}>{name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -344,6 +366,8 @@ export default function App() {
               background={background}
               look={look}
               onLook={setLook}
+              selected={newObj}
+              onPick={(n) => n && setNewObj(n)}
             />
           </div>
           <div className="transport">
@@ -377,6 +401,18 @@ export default function App() {
               <div className="group-title">Estado</div>
               <div className="prop"><span>nome</span><span>{stateId}</span></div>
               <div className="prop"><span>objetos</span><span>{nodeTree.length}</span></div>
+            </div>
+
+            {/* Colour belongs to the node inside the STATE, not to the clip — which is why it sits
+                under the state's own group and changes when you switch states. */}
+            <div className="group">
+              <div className="group-title">Objeto</div>
+              <ColourPanel
+                node={selectedNode ? newObj : null}
+                colour={selectedColour}
+                onChange={setColour}
+                onHole={() => setColour(C.HOLE)}
+              />
             </div>
 
             <div className="group">
@@ -528,12 +564,4 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-// A colour dot per node kind, so the tree reads at a glance the way the original's does.
-function dotClass(name) {
-  if (/^eye_/.test(name)) return 'dot eye';
-  if (/^pup_/.test(name)) return 'dot pup';
-  if (/^h[12]_/.test(name)) return 'dot hi';
-  return 'dot';
 }

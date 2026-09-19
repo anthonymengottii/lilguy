@@ -120,10 +120,16 @@ body {
 .tree button:hover { background: var(--panel-2); }
 .tree button.sel { background: var(--accent-dim); border-color: var(--accent); }
 .tree .grp { color: var(--muted); }
-.tree .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
-.tree .dot.eye { background: #6ff5d0; }
-.tree .dot.pup { background: #4a8cd0; }
-.tree .dot.hi { background: #d9b04a; }
+/* The dot carries the node's own colour, so the tree doubles as a legend. A hole has no colour to
+   show — it punches through to whatever is behind — so it is drawn hollow rather than black, which
+   would read as a painted black node. */
+.tree .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none;
+  border: 1px solid rgba(0, 0, 0, .35);
+}
+.tree .dot.hole {
+  background: transparent; border: 1px dashed var(--muted);
+}
 
 /* ---- the stage ---- */
 

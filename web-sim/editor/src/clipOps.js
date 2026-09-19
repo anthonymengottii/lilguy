@@ -16,6 +16,34 @@
 // It is not a list of pairs, and treating it as one silently drops every other lane. The helpers
 // below are the only place that indexing is done.
 
+// The data's hole value. A node coloured exactly this is PUNCHED out of what is behind it rather
+// than filled -- twenty of the 36 states draw their pupils this way, and reading it as the colour
+// black cost this project most of its fidelity once.
+export const HOLE = '000000';
+export const isHole = (c) => String(c || '').toUpperCase() === HOLE;
+
+// Set one node's colour inside one state.
+//
+// This edits the DOCUMENT, not the runtime. LarkRuntime.setColour exists and the published page
+// uses it, but a runtime override is not part of anim_data.json: it would look right in the browser
+// and vanish the moment the file was exported. Writing `objs[node].c` means the change survives
+// export -> tools/lark_pack.py -> the device.
+export function setNodeColour(data, stateId, node, hex) {
+  const state = data.states?.[stateId];
+  if (!state?.objs?.[node]) return data;
+  const c = String(hex).replace(/^#/, '').toUpperCase();
+  return {
+    ...data,
+    states: {
+      ...data.states,
+      [stateId]: {
+        ...state,
+        objs: { ...state.objs, [node]: { ...state.objs[node], c } },
+      },
+    },
+  };
+}
+
 // A keyframe's value for each keypath when nothing else is specified. `u: true` means "the node's
 // rest value" and carries no `v` at all.
 export function defaultValueFor(keypath) {

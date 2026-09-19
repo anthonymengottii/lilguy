@@ -337,3 +337,118 @@ test('the clip list holds the shipped clips', async ({ page }) => {
   expect(names.some((t) => t.startsWith('rot_1') && t.includes('grupos')),
     'group-only clips should be marked').toBe(true);
 });
+
+test('clicking a node on the stage selects it and shows its colour', async ({ page }) => {
+  // The pick is an ID PASS: the scene is redrawn offscreen with one flat colour per node, and the
+  // pixel under the cursor names the node. Reading the visible canvas instead would be wrong —
+  // both pupils in 1b are 106E54, a hole punches to the background rather than to a colour, and
+  // antialiased edges blend two nodes into a third value matching neither.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  const box = await page.locator('canvas').boundingBox();
+  const selectedNode = () => page.locator('.colour-panel .prop b').textContent();
+  // Panel coordinates -> screen. Aim well inside each target: state 1b leaves only a 5px gap
+  // between the eyes, and at the canvas's display size that is under 4 screen pixels — an earlier
+  // version of this test aimed at the gap's centre and landed on the eye beside it.
+  const clickPanel = async (px, py) => {
+    await page.mouse.click(box.x + (px / 240) * box.width, box.y + (py / 240) * box.height);
+    await page.waitForTimeout(300);
+  };
+
+  await clickPanel(73, 120);
+  expect(await selectedNode(), 'the middle of the left eye is its pupil').toBe('pup_l');
+
+  await clickPanel(171, 120);
+  expect(await selectedNode(), 'and the right eye its own').toBe('pup_r');
+
+  // Near the eye's edge, past the pupil: the eye itself.
+  await clickPanel(40, 120);
+  expect(await selectedNode(), 'the edge of the eye is the eye').toBe('eye_l');
+});
+
+test('the colour swatch edits the document, not just the runtime', async ({ page }) => {
+  // Colour lives on the node inside the state. A LarkRuntime override would look right on screen
+  // and vanish on export, so this checks the drawing AND the exported JSON.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  const box = await page.locator('canvas').boundingBox();
+  await page.mouse.click(box.x + (73 / 240) * box.width, box.y + (120 / 240) * box.height);
+  await page.waitForTimeout(300);
+  await expect(page.locator('.colour-panel .prop b')).toHaveText('pup_l');
+
+  const pupilPixel = () => page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(73, 120, 1, 1).data;
+    return [d[0], d[1], d[2]].join(',');
+  });
+  const before = await pupilPixel();
+
+  // `<input type="color">` opens an OS picker, so it cannot be driven by typing. Two details are
+  // load-bearing: React binds `input`, not `change`, and it tracks the element's value internally —
+  // assigning `el.value` directly makes React treat the change as one it already knows about and
+  // ignore the event. Going through the native setter is what makes it notice.
+  await page.locator('.colour-panel input[type="color"]').evaluate((el) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(el, '#ff0000');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(400);
+
+  expect(await pupilPixel(), 'the pupil should repaint').not.toBe(before);
+  expect(await pupilPixel(), 'and be the colour asked for').toBe('255,0,0');
+
+  // The tree's dot is a legend of the real colour, so it must follow.
+  const dot = await page.locator('.tree button', { hasText: 'pup_l' }).locator('.dot')
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(dot, 'the tree dot should show the new colour').toBe('rgb(255, 0, 0)');
+
+  // And the part the pixels cannot prove: the change is in the DOCUMENT, so it survives export.
+  // A LarkRuntime override would paint identically and be gone from the downloaded file.
+  const exported = await page.evaluate(async () => {
+    // Intercept the download by stubbing the anchor click the export builds.
+    let captured = null;
+    const realCreate = URL.createObjectURL;
+    URL.createObjectURL = (blob) => { captured = blob; return 'blob:stub'; };
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function noop() {};
+    document.querySelector('.titlebar button:last-of-type').click();
+    HTMLAnchorElement.prototype.click = realClick;
+    URL.createObjectURL = realCreate;
+    return captured ? JSON.parse(await captured.text()) : null;
+  });
+  expect(exported, 'the export should produce a document').not.toBeNull();
+  expect(exported.states['1b'].objs.pup_l.c, 'the exported JSON carries the new colour')
+    .toBe('FF0000');
+});
+
+test('the hole toggle punches rather than paints', async ({ page }) => {
+  // `000000` is a HOLE, not black: the node is cut out of what is behind it. Twenty of the 36
+  // states draw their pupils this way, and reading that value as the colour black cost this
+  // project most of its fidelity once.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  const box = await page.locator('canvas').boundingBox();
+  await page.mouse.click(box.x + (73 / 240) * box.width, box.y + (120 / 240) * box.height);
+  await page.waitForTimeout(300);
+
+  const hole = page.locator('.colour-panel input[type="checkbox"]');
+  await expect(hole, "1b's pupils are painted, not punched").not.toBeChecked();
+
+  await hole.check();
+  await page.waitForTimeout(400);
+
+  // Punched, the pupil shows the background through the eye — so the pixel there becomes the
+  // background colour rather than any node's colour.
+  const px = await page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(73, 120, 1, 1).data;
+    return [d[0], d[1], d[2]].join(',');
+  });
+  expect(px, 'a punched pupil shows the background').toBe('0,0,0');
+
+  // And the swatch disables itself, because there is no colour to show.
+  await expect(page.locator('.colour-panel input[type="color"]')).toBeDisabled();
+});
