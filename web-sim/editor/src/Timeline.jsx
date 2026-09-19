@@ -65,11 +65,18 @@ export default function Timeline({
         const readOnly = head.keypath === 'p';
         return (
           <div className="lane" key={`${clipName}:${index}`}>
-            <div className="lane-name">
+            {/* Clicking the name opens this lane in the curve graph without disturbing which
+                keyframe is selected for editing -- selecting keyframe 0 as a side effect of
+                switching lanes would silently retarget the inspector. */}
+            <button
+              type="button"
+              className={`lane-name${selection?.laneIndex === index ? ' active' : ''}`}
+              onClick={() => onSelect({ laneIndex: index, keyIndex: 0 })}
+            >
               <b>{head.object || '(raiz)'}</b>
               <span className="kp">{KEYPATH_LABEL[head.keypath] || head.keypath}</span>
               {readOnly && <span className="ro" title="Contorno de pálpebra: 24 números de Bézier por keyframe. Editável no tempo, não na forma.">forma fixa</span>}
-            </div>
+            </button>
             <div
               className="track"
               onPointerMove={onDrag}

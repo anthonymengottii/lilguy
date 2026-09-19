@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import Stage from './Stage';
 import Timeline from './Timeline';
 import Inspector from './Inspector';
+import CurveGraph from './CurveGraph';
 import { useEditorState } from './useEditorState';
 import * as C from './clipOps';
 import ANIM_DATA from '@data/anim_data.json';
@@ -108,9 +110,40 @@ export default function App() {
     setTimeMs(Math.max(0, Math.min(duration, t)));
   }, [apply, clipName, duration]);
 
+  // The curve graph edits a value by dragging a point vertically. It shares the drag's merge key
+  // with moveKey above, so one gesture that changes both time and value is still one undo.
+  const setComponentAt = useCallback((laneIndex, keyIndex, component, value) => {
+    apply(
+      (d) => C.setKeyComponent(d, clipName, laneIndex, keyIndex, component, value),
+      `drag:${laneIndex}:${keyIndex}`,
+    );
+  }, [apply, clipName]);
+
+  // The lane the curve graph is showing: whichever holds the selected keyframe.
+  const lanes = useMemo(() => C.lanesOf(clip), [clip]);
+  const activeLane = useMemo(() => {
+    if (!selection) return lanes[0] || null;
+    return lanes.find((l) => l.index === selection.laneIndex) || lanes[0] || null;
+  }, [lanes, selection]);
+
+  // The graph is an SVG, so it needs a pixel width rather than a CSS one.
+  const graphHost = useRef(null);
+  const [graphWidth, setGraphWidth] = useState(640);
+  useEffect(() => {
+    const el = graphHost.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => setGraphWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ---- new lane --------------------------------------------------------------------------------
 
-  const nodeNames = useMemo(() => C.nodeNamesOf(data, stateId), [data, stateId]);
+  // The object tree, groups included: a lane on `eyes` moves the pair, a lane on one eye group
+  // turns that eye about its own anchor. Those are the two things `rot` and `rot3d` do, and without
+  // the groups here they cannot be authored at all.
+  const nodeTree = useMemo(() => C.nodeTreeOf(data, stateId), [data, stateId]);
+  const nodeNames = useMemo(() => nodeTree.map((n) => n.name), [nodeTree]);
   const [newObj, setNewObj] = useState('');
   const [newKp, setNewKp] = useState('t');
   useEffect(() => { if (!newObj && nodeNames.length) setNewObj(nodeNames[0]); }, [nodeNames, newObj]);
@@ -272,9 +305,9 @@ export default function App() {
 
             {groupOnly && (
               <p className="warn">
-                Este clipe dirige <b>grupos</b> da cena (<code>eyes</code>, <code>group_eye_*</code>).
-                Aqui no navegador ele anima; no firmware ele toca e não desenha, porque os dados
-                empacotados não guardam nome de nó — veja <code>lark_behavior.h</code>.
+                Este clipe dirige <b>grupos</b> da cena (<code>eyes</code>, <code>group_eye_*</code>),
+                então cada lane move vários nós de uma vez: <code>eyes</code> gira o par junto,
+                <code> group_eye_*</code> gira cada olho no próprio eixo.
               </p>
             )}
 
@@ -302,6 +335,21 @@ export default function App() {
             </div>
           </div>
 
+          <div className="panel" ref={graphHost}>
+            <CurveGraph
+              clip={clip}
+              lane={activeLane}
+              laneIndex={activeLane?.index ?? 0}
+              selection={selection}
+              onSelect={setSelection}
+              onMoveKey={moveKey}
+              onSetComponent={setComponentAt}
+              onScrub={scrub}
+              timeMs={timeMs}
+              width={graphWidth - 32}
+            />
+          </div>
+
           <div className="panel">
             <Timeline
               clip={clip}
@@ -317,7 +365,11 @@ export default function App() {
               <span className="label">nova lane</span>
               <select value={newObj} onChange={(e) => setNewObj(e.target.value)}>
                 <option value="">(raiz — olhar)</option>
-                {nodeNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                {nodeTree.map(({ name, depth, isGroup }) => (
+                  <option key={name} value={name}>
+                    {'  '.repeat(depth)}{name}{isGroup ? ' ▸' : ''}
+                  </option>
+                ))}
               </select>
               <select value={newKp} onChange={(e) => setNewKp(e.target.value)}>
                 <option value="t">translação</option>

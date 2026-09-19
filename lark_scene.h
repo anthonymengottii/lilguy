@@ -122,10 +122,10 @@ inline void pathExtent(const float* p, int n, float* cx, float* cy, float* w, fl
 //
 // A function pointer rather than a base class: the scene is drawn from an interrupt-free render
 // loop on a device with no RTTI, and a vtable here buys nothing.
-// Nodes are addressed by kind and side, not by name: the packed data drops names, and for this
-// data kind+side is exact (the only named lane objects are eye_l/r and pup_l/r).
-typedef void (*ChannelSource)(uint8_t kind, float sideSign, const float* rest, int restCount,
-                              Channels& out, void* ctx);
+// Nodes are addressed by their id and their parent's, so a lane on a GROUP reaches everything the
+// group contains -- which is how `rot` turns the pair and `rot3d_2` turns each eye separately.
+typedef void (*ChannelSource)(uint8_t nodeId, uint8_t parentId, uint8_t kind,
+                              const float* rest, int restCount, Channels& out, void* ctx);
 
 // Draw one state. The lid paths are supplied by the caller rather than read here, because during a
 // blink the pupils must clip to the eye's CURRENT outline, not its rest pose, or they show through
@@ -184,7 +184,7 @@ struct Scene {
       // offset and a scale applied about the node's own centre.
       if (channels) {
         Channels ch;
-        channels(node.kind, side, raw, n, ch, channelCtx);
+        channels(node.id, node.parent, node.kind, raw, n, ch, channelCtx);
         if (ch.p.present && ch.p.pathCount) {
           n = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
           for (int i = 0; i < n; i++) raw[i] = ch.p.path[i];

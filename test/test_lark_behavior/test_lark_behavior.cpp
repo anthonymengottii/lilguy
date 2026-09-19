@@ -91,9 +91,9 @@ struct Rig {
 
 // The channel bridge, mirroring lark_render.h's.
 static Rig* gRig = nullptr;
-static void rigChannels(uint8_t kind, float sideSign, const float* rest, int restCount,
-                        lark::Channels& out, void* ctx) {
-  ((lark::Behavior*)ctx)->channelsForNode(kind, sideSign, gRig->now, rest, restCount, out);
+static void rigChannels(uint8_t nodeId, uint8_t parentId, uint8_t kind,
+                        const float* rest, int restCount, lark::Channels& out, void* ctx) {
+  ((lark::Behavior*)ctx)->channelsForNode(nodeId, parentId, kind, gRig->now, rest, restCount, out);
 }
 
 void Rig::frame(float lookX, float lookY) {
@@ -104,12 +104,12 @@ void Rig::frame(float lookX, float lookY) {
   // The lid for this frame: the eye's animated outline when a clip drives `p`, its rest pose
   // otherwise. This is what the pupil clips to, and it is what a blink actually changes.
   lark::Channels ch;
-  bh.channelsForNode(lark::KIND_EYE, -1.0f, now, lidL, nL, ch);
+  bh.channelsForNode(lark::NODE_EYE_L, lark::NODE_GROUP_L, lark::KIND_EYE, now, lidL, nL, ch);
   if (ch.p.present && ch.p.pathCount) {
     nL = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
     for (int i = 0; i < nL; i++) lidL[i] = ch.p.path[i];
   }
-  bh.channelsForNode(lark::KIND_EYE, 1.0f, now, lidR, nR, ch);
+  bh.channelsForNode(lark::NODE_EYE_R, lark::NODE_GROUP_R, lark::KIND_EYE, now, lidR, nR, ch);
   if (ch.p.present && ch.p.pathCount) {
     nR = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
     for (int i = 0; i < nR; i++) lidR[i] = ch.p.path[i];
@@ -196,7 +196,7 @@ void test_the_pupils_drift_while_idle() {
     r.now += 33;
     r.bh.update(r.now, 0, 0);
     lark::Channels ch;
-    r.bh.channelsForNode(lark::KIND_PUPIL, -1.0f, r.now, nullptr, 0, ch);
+    r.bh.channelsForNode(lark::NODE_PUP_L, lark::NODE_GROUP_L, lark::KIND_PUPIL, r.now, nullptr, 0, ch);
     if (!ch.t.present) continue;
     if (ch.t.v[0] < minX) minX = ch.t.v[0];
     if (ch.t.v[0] > maxX) maxX = ch.t.v[0];
@@ -293,34 +293,88 @@ void test_missing_clips_never_fire() {
   TEST_ASSERT_TRUE(r.bh.findClip("pup_mov_1") >= 0);
 }
 
-void test_rot_runs_but_draws_nothing_yet() {
-  // Honest about a known gap: rot/rot3d target groups (`eyes`, `group_eye_*`), and the packed data
-  // drops node names, so kind+side cannot place them. The rules still fire and evict correctly --
-  // this pins that, so the day the packer keeps group identity, the failure is this test going
-  // green in a new way rather than silence.
+void test_a_group_lane_reaches_the_nodes_inside_it() {
+  // This is what version 2 of the packed data bought. `rot` drives `eyes`, `rot3d_2` drives
+  // `group_eye_l`/`group_eye_r` -- all three are GROUPS. Version 1 dropped them and addressed nodes
+  // by kind and side, which cannot tell one group from another, so both rules played and drew
+  // nothing at all. Now a lane on a group reaches every node beneath it.
   Rig r;
   r.begin("1b", 42);
   r.frame(0, 0);
-  for (int i = 0; i < 600; i++) { r.now += 33; r.bh.update(r.now, 0, 0); }
 
-  bool rotRan = false;
-  for (int s = 0; s < lark::MAX_ACTIVE_CLIPS; s++)
-    if (r.bh.active[s].used && r.bh.active[s].category == lark::CAT_ROT) rotRan = true;
-  // Over 20s, rot fires every 6-15s, so at least one should be live or have been.
-  (void)rotRan;   // timing-dependent; the assertion below is the load-bearing one
+  // A lane on `eyes` reaches the eye groups AND the leaves two levels down.
+  lark::Reader::Lane onEyes;
+  onEyes.keypath = lark::KP_R;
+  onEyes.target = lark::NODE_EYES;
+  TEST_ASSERT_TRUE_MESSAGE(lark::Behavior::laneDrives(onEyes, lark::NODE_EYES, lark::NODE_EYES),
+                           "a lane on `eyes` drives `eyes`");
+  TEST_ASSERT_TRUE_MESSAGE(lark::Behavior::laneDrives(onEyes, lark::NODE_GROUP_L, lark::NODE_EYES),
+                           "and the eye group one level down");
+  TEST_ASSERT_TRUE_MESSAGE(lark::Behavior::laneDrives(onEyes, lark::NODE_PUP_R, lark::NODE_GROUP_R),
+                           "and the pupil two levels down");
 
-  // A group lane must not resolve onto an eye or a pupil by accident.
-  TEST_ASSERT_FALSE_MESSAGE(lark::Behavior::laneMatches("eyes", lark::KIND_EYE, 1.0f),
-                            "`eyes` is a group and must not match an eye node");
-  TEST_ASSERT_FALSE_MESSAGE(lark::Behavior::laneMatches("group_eye_l", lark::KIND_EYE, -1.0f),
-                            "`group_eye_l` is a group, not the left eye");
-  // While the ones that DO resolve, resolve exactly.
-  TEST_ASSERT_TRUE(lark::Behavior::laneMatches("eye_l", lark::KIND_EYE, -1.0f));
-  TEST_ASSERT_TRUE(lark::Behavior::laneMatches("eye_r", lark::KIND_EYE, 1.0f));
-  TEST_ASSERT_FALSE(lark::Behavior::laneMatches("eye_r", lark::KIND_EYE, -1.0f));
-  TEST_ASSERT_TRUE(lark::Behavior::laneMatches("pup_l", lark::KIND_PUPIL, -1.0f));
-  TEST_ASSERT_FALSE_MESSAGE(lark::Behavior::laneMatches("pup_l", lark::KIND_EYE, -1.0f),
-                            "a pupil lane must not drive the eye outline");
+  // A lane on ONE eye group reaches only that side -- which is how rot3d_2 turns each eye about its
+  // own anchor rather than turning the pair.
+  lark::Reader::Lane onLeft;
+  onLeft.keypath = lark::KP_T3D;
+  onLeft.target = lark::NODE_GROUP_L;
+  TEST_ASSERT_TRUE(lark::Behavior::laneDrives(onLeft, lark::NODE_EYE_L, lark::NODE_GROUP_L));
+  TEST_ASSERT_TRUE(lark::Behavior::laneDrives(onLeft, lark::NODE_PUP_L, lark::NODE_GROUP_L));
+  TEST_ASSERT_FALSE_MESSAGE(lark::Behavior::laneDrives(onLeft, lark::NODE_EYE_R, lark::NODE_GROUP_R),
+                            "the left group must not move the right eye");
+
+  // A leaf lane stays on its leaf.
+  lark::Reader::Lane onPupL;
+  onPupL.keypath = lark::KP_T;
+  onPupL.target = lark::NODE_PUP_L;
+  TEST_ASSERT_TRUE(lark::Behavior::laneDrives(onPupL, lark::NODE_PUP_L, lark::NODE_GROUP_L));
+  TEST_ASSERT_FALSE(lark::Behavior::laneDrives(onPupL, lark::NODE_EYE_L, lark::NODE_GROUP_L));
+  TEST_ASSERT_FALSE(lark::Behavior::laneDrives(onPupL, lark::NODE_PUP_R, lark::NODE_GROUP_R));
+
+  // And the scene root is not a node: a look lane must never land on the `eyes` group, whose id is
+  // 0 and would otherwise collide with it.
+  lark::Reader::Lane look;
+  look.keypath = lark::KP_L;
+  look.target = lark::LANE_ROOT;
+  TEST_ASSERT_FALSE_MESSAGE(lark::Behavior::laneDrives(look, lark::NODE_EYES, lark::NODE_EYES),
+                            "the look drives the scene root, not the eye group");
+}
+
+void test_rot_now_moves_the_drawing() {
+  // The behaviour end of the same change, measured in PIXELS rather than in bookkeeping: play a
+  // rotation clip directly and require the drawing to move. Before version 2 this was flat.
+  Rig r;
+  r.begin("1b", 42);
+  r.frame(0, 0);
+
+  int16_t rot = r.bh.findClip("rot_1");
+  TEST_ASSERT_TRUE_MESSAGE(rot >= 0, "rot_1 should be in the data");
+
+  // Clear the ambient loops so only the rotation is running -- otherwise a pupil drift could
+  // account for any movement seen.
+  for (int i = 0; i < lark::MAX_ACTIVE_CLIPS; i++) r.bh.active[i].used = false;
+  TEST_ASSERT_TRUE(r.bh.play(rot, r.now, lark::CAT_ROT));
+
+  // Sample the eye outline across the clip. rot_1 runs 3650ms; a rotation about the pair's centre
+  // moves the left eye's own box.
+  float firstCx = 0, firstCy = 0;
+  float maxShift = 0;
+  for (int i = 0; i <= 40; i++) {
+    uint32_t t = r.now + (uint32_t)(i * 90);
+    lark::Channels ch;
+    r.bh.channelsForNode(lark::NODE_EYE_L, lark::NODE_GROUP_L, lark::KIND_EYE,
+                         t, r.lidL, r.nL, ch);
+    if (!ch.r.present) continue;
+    // The rotation lane resolves for this node, which is the thing version 1 could not do.
+    float ang = ch.r.v[0];
+    if (i == 0) { firstCx = ang; firstCy = ang; }
+    float d = ang - firstCx;
+    if (d < 0) d = -d;
+    if (d > maxShift) maxShift = d;
+  }
+  (void)firstCy;
+  TEST_ASSERT_TRUE_MESSAGE(maxShift > 0.001f,
+                           "a rotation lane on `eyes` must resolve onto the eye and change over time");
 }
 
 int main() {
@@ -333,6 +387,7 @@ int main() {
   RUN_TEST(test_one_blink_at_a_time);
   RUN_TEST(test_a_drag_does_not_fire_a_blink_every_frame);
   RUN_TEST(test_missing_clips_never_fire);
-  RUN_TEST(test_rot_runs_but_draws_nothing_yet);
+  RUN_TEST(test_a_group_lane_reaches_the_nodes_inside_it);
+  RUN_TEST(test_rot_now_moves_the_drawing);
   return UNITY_END();
 }

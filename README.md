@@ -80,9 +80,8 @@ timers.
 It is still short of the real thing, and the gap is the data, not the port: the site's behaviour
 rules name **35 clips that exist in no file it distributes** (`dance_hp`, `spin_h`, `curious_3`,
 `heart_sprites`…), confirmed absent from the JSON, from the live site's own `.bin`, and from the
-published fork. Of the 23 rules, five can run here, and two of those (`rot`, `rot3d`) fire correctly
-but draw nothing yet, because they target scene *groups* and the packer drops node names — see
-`lark_behavior.h`, which says so at the line that schedules them.
+published fork. Of the 23 rules, five can run here — the other eighteen name clips that do not
+exist.
 
 **Effects** — Matrix, Cube, Plasma, Tesseract, Tunnel, Weave, Sonar, Squares, Bars, Ripple, Spokes,
 Name Spiral, Starfield, Mystify, DVD, Pipes, Fractal, Swirl — plus a physics-and-creative set: Fluid

@@ -51,14 +51,8 @@ página desenha, capturados pelos harnesses daqui. A consequência é a regra qu
 > original com Playwright, instrumento que o firmware não tem. Se algo parecer errado no aparelho,
 > reproduzir aqui e medir aqui.
 
-Duas diferenças conhecidas entre o que roda aqui e o que roda lá, ambas por falta de dado e não por
-decisão de fidelidade:
+Uma diferença conhecida entre o que roda aqui e o que roda lá:
 
-- **`rot` e `rot3d` não desenham no firmware.** Suas lanes miram `eyes`, `group_eye_l` e
-  `group_eye_r` — *grupos* — e o `tools/lark_pack.py` descarta os nomes dos nós, deixando-os
-  identificados por tipo e lado. Tipo+lado resolve `eye_l/r` e `pup_l/r` com exatidão (o que cobre
-  `idle`, os dois desvios de pupila, `pup_scale` e as três piscadas), mas não distingue um grupo de
-  outro. As regras disparam e se substituem corretamente; só não movem pixel.
 - **O sensor 15 é alimentado com 1.0 fixo no firmware.** Aqui ele nunca é alimentado, que é o que
   reproduz a original não piscando sozinha. No aparelho isso deixaria os olhos sem piscar nunca, e
   1.0 seleciona o conjunto saudável (`blink`/`blink2`/`blink3`). É uma **escolha**, documentada como
@@ -69,6 +63,13 @@ decisão de fidelidade:
 `editor/` é uma aplicação React+Vite separada para **tocar e editar as animações**: escolhe um dos
 15 clipes, toca, arrasta o playhead, arrasta keyframes na timeline, edita valores e curvas, cria
 clipes novos, desfaz e refaz.
+
+**O editor de curvas** é o centro: valor contra tempo, uma linha por componente, keyframes
+arrastáveis nos dois eixos ao mesmo tempo (shift prende no tempo). Ele desenha amostrando as
+`CURVES` do próprio `lark.js`, não uma aproximação — a linha desenhada é a linha tocada. Isso
+importa porque é onde as sutilezas deste dado moram: a curva de um segmento é a do keyframe de onde
+ele *sai*, e a curva 0 é um **degrau** que segura a origem, não uma rampa. Uma lista de números
+esconde as duas coisas; um gráfico não.
 
 ```sh
 npm --prefix editor install     # uma vez

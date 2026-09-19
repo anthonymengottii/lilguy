@@ -213,17 +213,50 @@ export function renameClip(data, from, to) {
 // Which node names a state actually contains -- the lane targets that will draw something. Read
 // from the state rather than hardcoded, because states differ: not all have highlights.
 export function nodeNamesOf(data, stateId) {
-  const state = data.states?.[stateId];
-  if (!state?.objs) return [];
-  return Object.keys(state.objs).filter((n) => /^(eye|pup|h1|h2)_/.test(n)).sort();
+  return nodeTreeOf(data, stateId).map((n) => n.name);
 }
 
-// Does this clip move anything this renderer draws?
+// The state's object tree, in the order and depth the original tool shows it:
 //
-// `rot` and `rot3d` target `eyes`, `group_eye_l` and `group_eye_r` -- scene GROUPS. The browser
-// runtime carries them, so they animate here; the firmware's packed data drops node names and
-// addresses nodes by kind and side, which cannot tell one group from another, so there they play
-// and draw nothing. Flagged in the UI so that difference is visible rather than surprising.
+//   eyes
+//     group_eye_l
+//       eye_l
+//       pup_l
+//     group_eye_r
+//       ...
+//
+// GROUPS ARE INCLUDED, and that matters for authoring: a lane on `eyes` moves the pair together,
+// which is how `rot` works, and a lane on one eye group turns that eye about its own anchor, which
+// is how `rot3d_2` works. Filtering them out -- as this did at first -- makes those clips
+// impossible to author or even to understand.
+//
+// Built from the data's own `ch` child lists rather than from the names, so a state laid out
+// differently still reads correctly.
+export function nodeTreeOf(data, stateId) {
+  const objs = data.states?.[stateId]?.objs;
+  if (!objs) return [];
+
+  const roots = data.states[stateId].rootObjs
+    || Object.keys(objs).filter((k) => !Object.values(objs).some((o) => (o.ch || []).includes(k)));
+
+  const out = [];
+  const walk = (name, depth) => {
+    const o = objs[name];
+    if (!o) return;
+    out.push({ name, depth, isGroup: o.type === 'group', z: o.z ?? 0 });
+    for (const child of (o.ch || [])) walk(child, depth + 1);
+  };
+  for (const r of roots) walk(r, 0);
+  return out;
+}
+
+// Does this clip drive whole GROUPS rather than individual eyes and pupils? `rot` turns the pair
+// about `eyes`; `rot3d_2` turns each eye about its own group. Worth surfacing in the UI because a
+// group lane moves several nodes at once, which is not obvious from the lane's name alone.
+//
+// It used to mean something sharper -- "this clip draws nothing on the device" -- because version 1
+// of the packed data dropped the groups and addressed nodes by kind and side. Version 2 carries
+// node ids, so these clips now reach the pixels on the hardware too.
 export function targetsGroups(clip) {
   if (!clip?.lanes) return false;
   return lanesOf(clip).some(({ head }) => head.object && !/^(eye|pup|h1|h2)_/.test(head.object));

@@ -18,9 +18,21 @@ WHAT IS DROPPED, AND WHY IT IS SAFE
            keeps `b` only to resolve normalised anchors, and those can come from the path's extent.
   app/dis  appear/disappear curves. Unused while a state simply sits there, which is all the
            firmware does with a state.
-  ch/z     child lists and paint order. The scene graph is fixed — eyes, then pupils, then
-           highlights — so order is implied by the node table's own order.
-  names    kept in a trailing block, for debugging only; the firmware indexes by number.
+  z        paint order. Nodes are written already sorted by it, so the order IS the data.
+  names    state and clip names, kept in a trailing block for debugging; the firmware indexes
+           by number.
+
+WHAT WAS DROPPED AND SHOULD NOT HAVE BEEN (fixed in version 2)
+Version 1 dropped the groups outright — "groups carry no geometry" — and with them every node's
+identity, leaving nodes addressable only by kind and side. That resolves eye_l/r and pup_l/r
+exactly, which covers idle, both pupil drifts, pup_scale and all three blinks. It cannot tell one
+GROUP from another, so `rot` and `rot3d` — whose lanes target `eyes`, `group_eye_l` and
+`group_eye_r` — played on the device and drew nothing at all.
+
+Version 2 writes a one-byte node id per node and a group table alongside it. The id space is tiny
+and closed: across all 36 states there are exactly eleven node names, and the hierarchy is the same
+in every one (eyes -> group_eye_l/r -> eye_*/pup_*), so an id is a byte and the tree is a constant
+the firmware can carry in a header rather than data it has to parse.
 
 The round-trip test (test/test_lark_data) reads this back and compares every path, colour, duration
 and keyframe against the JSON. Nothing that the runtime reads may differ.
@@ -33,10 +45,37 @@ import sys
 from pathlib import Path
 
 MAGIC = b'LARK'
-VERSION = 1
+VERSION = 2
 
 # Node kinds, in the order the renderer paints them.
 KIND_GROUP, KIND_EYE, KIND_PUPIL, KIND_HIGHLIGHT = 0, 1, 2, 3
+
+# Every node name that appears anywhere in the data, as a one-byte id. Surveyed across all 36
+# states: these eleven are the complete set, and the hierarchy below them is identical in every
+# state. That makes the id space closed, so an unknown name here is a change in the data rather
+# than a gap in this table -- and pack_states raises instead of inventing an id for it.
+#
+# Lane objects address nodes by exactly these names, which is why the ids exist at all: without
+# them a group lane (`eyes`, `group_eye_*`) has nothing to resolve to.
+NODE_IDS = {
+    'eyes': 0,
+    'group_eye_l': 1,
+    'group_eye_r': 2,
+    'eye_l': 3,
+    'eye_r': 4,
+    'pup_l': 5,
+    'pup_r': 6,
+    'h1_l': 7,
+    'h1_r': 8,
+    'h2_l': 9,
+    'h2_r': 10,
+}
+NODE_ROOT = 0                 # `eyes`, the only root in every state (rootObjs is ["eyes"] in all 36)
+
+# A lane whose `object` is "" targets the SCENE root, not a node. It needs a marker distinct from
+# every node id, because id 0 is `eyes` -- a real group that `rot` targets -- and conflating the two
+# would send the look lane to the eye group and the rotation to nowhere.
+LANE_ROOT = 0xFF
 
 KEYPATHS = ['p', 't', 's', 'o', 'l', 'r', 't3d']       # index = wire value
 REPEATS = {'n': 0, 'l': 1}
@@ -69,7 +108,13 @@ def rgb565(hexstr):
 
 
 def pack_states(data):
-    """states: count, then per state: node count, then per node its fields and path."""
+    """states: count, then per state: node count, then per node its fields and path.
+
+    Version 2 adds a node id and a parent id to every node, and stops dropping the groups. A group
+    carries no geometry -- pathCount is 0 and the renderer skips it -- but it MUST be present and
+    identifiable, because clip lanes address it: `rot` drives `eyes`, `rot3d_2` drives
+    `group_eye_l`/`group_eye_r`. Without them those clips play and draw nothing.
+    """
     out = bytearray()
     names = []
     ids = sorted(data['states'].keys())
@@ -77,11 +122,26 @@ def pack_states(data):
     for sid in ids:
         names.append(sid)
         objs = data['states'][sid]['objs']
-        # Paint order: the data's own z. Groups carry no geometry and are dropped.
-        drawn = [(n, o) for n, o in objs.items() if o.get('type') != 'group']
-        drawn.sort(key=lambda kv: kv[1].get('z', 0))
-        out += struct.pack('<H', len(drawn))
-        for name, o in drawn:
+
+        # Each node's parent, from the data's own child lists rather than from the name. A node with
+        # no parent is a root and stores itself as its parent, which the reader reads as "no parent"
+        # without needing a sentinel that could collide with a real id.
+        parent = {}
+        for n, o in objs.items():
+            for child in (o.get('ch') or []):
+                parent[child] = n
+
+        # Paint order is the data's own z, and groups sort into it by their own z (eyes 0,
+        # group_eye_l 1, group_eye_r 4) so a group always precedes the children it contains. The
+        # renderer walks this list in order and skips anything with no path.
+        ordered = sorted(objs.items(), key=lambda kv: kv[1].get('z', 0))
+        out += struct.pack('<H', len(ordered))
+        for name, o in ordered:
+            if name not in NODE_IDS:
+                raise ValueError(
+                    f'{sid}/{name}: unknown node name. NODE_IDS was surveyed as the complete set '
+                    f'across all 36 states -- a new name means the data changed, and the table and '
+                    f'the firmware\'s copy of the hierarchy both need updating.')
             p = o.get('p') or []
             if len(p) not in (0, 24):
                 raise ValueError(f'{sid}/{name}: unexpected path length {len(p)}')
@@ -90,11 +150,18 @@ def pack_states(data):
                 flags |= 1
             ll = o.get('ll') or [0, 0]
             lts = o.get('lts') or [0, 0]
+            # Groups DO carry a colour in the data -- all three are FFFFFF -- even though nothing
+            # paints them. Preserved as written rather than zeroed: this file's job is to be a
+            # faithful re-encoding, and a field invented here is a field that cannot be checked
+            # against the source.
+            colour = rgb565(o['c']) if o.get('c') else 0
             out += struct.pack(
-                '<BBHhhhh',
+                '<BBBBHhhhh',
+                NODE_IDS[name],
+                NODE_IDS.get(parent.get(name), NODE_IDS[name]),   # self = no parent
                 kind_of(name, o),
                 flags,
-                rgb565(o['c']),
+                colour,
                 round(ll[0] * 1000), round(ll[1] * 1000),     # 0..1, three decimals is plenty
                 round(lts[0] * 1000), round(lts[1] * 1000),
             )
@@ -144,10 +211,15 @@ def pack_clips(data):
             kp = head['keypath']
             if kp not in KEYPATHS:
                 raise ValueError(f'{cid}: unhandled keypath {kp}')
-            # object "" means the root; anything else is a node name the runtime resolves by kind.
+            # The lane's target, as a node id rather than a name. `object: ""` means the ROOT of the
+            # scene -- where every clip drives the look -- which is not a node, so it gets its own
+            # marker rather than being confused with node id 0 (`eyes`, a real group that `rot`
+            # actually targets).
             obj = head.get('object') or ''
-            out += struct.pack('<BB', KEYPATHS.index(kp), len(keys))
-            out += struct.pack('<B', len(obj)) + obj.encode()
+            if obj and obj not in NODE_IDS:
+                raise ValueError(f'{cid}: lane targets unknown node "{obj}"')
+            target = NODE_IDS[obj] if obj else LANE_ROOT
+            out += struct.pack('<BBB', KEYPATHS.index(kp), len(keys), target)
             for k in keys:
                 payload = pack_value(kp, k)
                 out += struct.pack('<HBB', k['t'], k.get('c', 24), 1 if k.get('u') else 0)

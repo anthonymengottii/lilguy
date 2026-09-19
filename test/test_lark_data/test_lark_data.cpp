@@ -107,6 +107,9 @@ void test_every_state_path_survives_the_round_trip() {
     lark::Reader::Node node;
     int k = 0;
     while (it.next(node)) {
+      // Since version 2 the blob also carries the three groups, so that clip lanes can address
+      // them. They hold no geometry and are not in `ents`, which lists drawables only.
+      if (node.isGroup()) continue;
       TEST_ASSERT_LESS_THAN_INT_MESSAGE(n, k, sid);
       JsonArray p = objs[ents[k].name]["p"];
       TEST_ASSERT_EQUAL_UINT16_MESSAGE(p.size(), node.pathCount, ents[k].name);
@@ -135,14 +138,22 @@ void test_colours_and_lid_flag_survive() {
     if (strcmp(stateIdAt(s), "1b") != 0) continue;
     lark::Reader::StateIter it = rd.state(s);
     lark::Reader::Node node;
-    bool sawEye = false, sawPupil = false;
+    bool sawEye = false, sawPupil = false, sawGroup = false;
     while (it.next(node)) {
+      if (node.isGroup()) {
+        // Groups carry FFFFFF in the data even though nothing paints them, and the pack preserves
+        // it rather than inventing a zero -- 0xFFFF is white in RGB565.
+        sawGroup = true;
+        TEST_ASSERT_EQUAL_UINT16_MESSAGE(0xFFFF, node.colour, "a group's colour is preserved as written");
+        continue;
+      }
       TEST_ASSERT_TRUE(node.flags & lark::FLAG_USE_LID);
       if (node.kind == lark::KIND_EYE) { sawEye = true; TEST_ASSERT_EQUAL_UINT16(0x6FBA, node.colour); }
       if (node.kind == lark::KIND_PUPIL) { sawPupil = true; TEST_ASSERT_EQUAL_UINT16(0x136A, node.colour); }
     }
     TEST_ASSERT_TRUE(sawEye);
     TEST_ASSERT_TRUE(sawPupil);
+    TEST_ASSERT_TRUE_MESSAGE(sawGroup, "the groups must survive the pack -- clip lanes address them");
     return;
   }
   TEST_FAIL_MESSAGE("state 1b not found");
@@ -177,7 +188,7 @@ void test_blink_opacity_lane_keyframes_survive() {
     for (uint8_t l = 0; l < clip.laneCount; l++) {
       lark::Reader::Lane lane;
       TEST_ASSERT_TRUE(clip.lane(l, lane));
-      if (lane.keypath != lark::KP_O || strcmp(lane.object, "pup_l") != 0) continue;
+      if (lane.keypath != lark::KP_O || lane.target != lark::NODE_PUP_L) continue;
       found = true;
       TEST_ASSERT_EQUAL_UINT8(3, lane.keyCount);
       const uint16_t ts[] = {150, 233, 300};
@@ -210,7 +221,7 @@ void test_blink_replacement_path_survives() {
     for (uint8_t l = 0; l < clip.laneCount; l++) {
       lark::Reader::Lane lane;
       clip.lane(l, lane);
-      if (lane.keypath != lark::KP_P || strcmp(lane.object, "eye_l") != 0) continue;
+      if (lane.keypath != lark::KP_P || lane.target != lark::NODE_EYE_L) continue;
       JsonArray keys = doc["animations"]["blink"]["lanes"];
       // find the same lane in the JSON
       for (size_t i = 0; i < keys.size(); i += 2) {
@@ -244,6 +255,93 @@ void test_rejects_a_corrupt_blob() {
   TEST_ASSERT_FALSE(bad.open(blob, 8));            // truncated
 }
 
+void test_the_groups_are_present_and_identified() {
+  // Version 1 dropped groups outright, which left `rot` and `rot3d` -- whose lanes target them --
+  // playing on the device and drawing nothing. Every state carries the same three-level tree:
+  // eyes -> group_eye_l/r -> eye_*/pup_*.
+  loadOnce();
+  for (uint16_t s = 0; s < rd.stateCount(); s++) {
+    lark::Reader::StateIter it = rd.state(s);
+    lark::Reader::Node n;
+    bool sawEyes = false, sawGroupL = false, sawGroupR = false;
+    int leaves = 0;
+    char sid[16];
+    rd.stateName(s, sid, sizeof sid);
+    while (it.next(n)) {
+      if (n.id == lark::NODE_EYES) {
+        sawEyes = true;
+        TEST_ASSERT_TRUE_MESSAGE(n.isRoot(), "`eyes` is the root of every state");
+        TEST_ASSERT_TRUE_MESSAGE(n.isGroup(), "`eyes` carries no geometry");
+      } else if (n.id == lark::NODE_GROUP_L) {
+        sawGroupL = true;
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(lark::NODE_EYES, n.parent, "group_eye_l hangs off eyes");
+      } else if (n.id == lark::NODE_GROUP_R) {
+        sawGroupR = true;
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(lark::NODE_EYES, n.parent, "group_eye_r hangs off eyes");
+      } else {
+        leaves++;
+        // Every leaf sits under one of the two eye groups, which is what lets a lane on `eyes`
+        // reach it two levels down.
+        TEST_ASSERT_TRUE_MESSAGE(n.parent == lark::NODE_GROUP_L || n.parent == lark::NODE_GROUP_R,
+                                 "a leaf must hang off an eye group");
+      }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(sawEyes, sid);
+    TEST_ASSERT_TRUE_MESSAGE(sawGroupL, sid);
+    TEST_ASSERT_TRUE_MESSAGE(sawGroupR, sid);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT_MESSAGE(4, leaves, "two eyes and two pupils at minimum");
+  }
+}
+
+void test_lane_targets_are_ids_not_names() {
+  // The lanes that made this change necessary: rot drives the whole pair, rot3d_2 drives each eye
+  // group separately, and every clip's look lane drives the scene root rather than any node.
+  loadOnce();
+  char name[24];
+  bool sawRot = false, sawRot3d2 = false, sawRootLook = false;
+  for (uint16_t c = 0; c < rd.clipCount(); c++) {
+    rd.clipName(c, name, sizeof name);
+    lark::Reader::Clip clip;
+    TEST_ASSERT_TRUE(rd.clip(c, clip));
+    for (uint8_t l = 0; l < clip.laneCount; l++) {
+      lark::Reader::Lane lane;
+      TEST_ASSERT_TRUE(clip.lane(l, lane));
+      if (strcmp(name, "rot_1") == 0 && lane.keypath == lark::KP_R) {
+        sawRot = true;
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(lark::NODE_EYES, lane.target, "rot turns the whole pair");
+      }
+      if (strcmp(name, "rot3d_2") == 0 && lane.keypath == lark::KP_T3D) {
+        sawRot3d2 = true;
+        TEST_ASSERT_TRUE_MESSAGE(
+            lane.target == lark::NODE_GROUP_L || lane.target == lark::NODE_GROUP_R,
+            "rot3d_2 turns each eye about its own group");
+      }
+      if (lane.keypath == lark::KP_L) {
+        sawRootLook = true;
+        // The root marker must be distinct from node id 0 (`eyes`), or the look would drive the
+        // eye group and the rotation would drive nothing.
+        TEST_ASSERT_TRUE_MESSAGE(lane.drivesRoot(), "a look lane drives the scene root");
+        TEST_ASSERT_NOT_EQUAL_UINT8(lark::NODE_EYES, lane.target);
+      }
+    }
+  }
+  TEST_ASSERT_TRUE_MESSAGE(sawRot, "rot_1 should carry a rotation lane");
+  TEST_ASSERT_TRUE_MESSAGE(sawRot3d2, "rot3d_2 should carry t3d lanes");
+  TEST_ASSERT_TRUE_MESSAGE(sawRootLook, "some clip should drive the look");
+}
+
+void test_a_version_1_blob_is_refused() {
+  // The node stride changed, so a v1 blob read as v2 is garbage rather than a subset. Refusing it
+  // turns "the eyes look wrong" into "rerun tools/lark_pack.py".
+  loadOnce();
+  uint8_t* stale = (uint8_t*)malloc(blobLen);
+  memcpy(stale, blob, blobLen);
+  stale[4] = 1;                                    // version field back to 1
+  lark::Reader old;
+  TEST_ASSERT_FALSE_MESSAGE(old.open(stale, blobLen), "a version-1 blob must be refused");
+  free(stale);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_blob_opens);
@@ -254,5 +352,8 @@ int main() {
   RUN_TEST(test_blink_opacity_lane_keyframes_survive);
   RUN_TEST(test_blink_replacement_path_survives);
   RUN_TEST(test_rejects_a_corrupt_blob);
+  RUN_TEST(test_the_groups_are_present_and_identified);
+  RUN_TEST(test_lane_targets_are_ids_not_names);
+  RUN_TEST(test_a_version_1_blob_is_refused);
   return UNITY_END();
 }

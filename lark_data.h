@@ -17,6 +17,25 @@ static const uint16_t KP_P = 0, KP_T = 1, KP_S = 2, KP_O = 3, KP_L = 4, KP_R = 5
 static const uint8_t KIND_GROUP = 0, KIND_EYE = 1, KIND_PUPIL = 2, KIND_HIGHLIGHT = 3;
 static const uint8_t FLAG_USE_LID = 1;             // the data's `ul: true`
 
+// Node ids, matching NODE_IDS in tools/lark_pack.py. Clip lanes address nodes by these, which is
+// the whole reason they exist: before version 2 the pack dropped node names and left nodes
+// addressable only by kind and side, so `rot` and `rot3d` -- whose lanes target the GROUPS -- ran
+// on the device and drew nothing.
+//
+// The set is closed. Surveyed across all 36 states, these eleven names are all that appear, and the
+// hierarchy is identical in every state, so it lives here as a constant rather than in the data.
+static const uint8_t NODE_EYES = 0, NODE_GROUP_L = 1, NODE_GROUP_R = 2,
+                     NODE_EYE_L = 3, NODE_EYE_R = 4, NODE_PUP_L = 5, NODE_PUP_R = 6,
+                     NODE_H1_L = 7, NODE_H1_R = 8, NODE_H2_L = 9, NODE_H2_R = 10;
+static const uint8_t NODE_COUNT = 11;
+
+// A lane whose target is this drives the SCENE root, not a node -- it is where every clip drives
+// the look. Distinct from id 0 (`eyes`), which is a real group that `rot` targets.
+static const uint8_t LANE_ROOT = 0xFF;
+
+// Bytes before a node's path data: id, parent, kind, flags, colour(2), ll(4), lts(4), pathCount(2).
+static const int NODE_HEAD = 16;
+
 struct Reader {
   const uint8_t* base = nullptr;
   uint32_t size = 0;
@@ -33,7 +52,10 @@ struct Reader {
   bool open(const uint8_t* blob, uint32_t n) {
     if (!blob || n < 6 + 32) return false;
     if (memcmp(blob, "LARK", 4) != 0) return false;
-    if (rd16(blob + 4) != 1) return false;
+    // Version 2 added node ids, the groups, and lane targets as ids. A version-1 blob has a
+    // different node stride and would be read as garbage, so it is refused rather than tolerated:
+    // the fix is to rerun tools/lark_pack.py, and a clear failure says so.
+    if (rd16(blob + 4) != 2) return false;
     base = blob;
     size = n;
     for (int i = 0; i < 4; i++) {
@@ -50,11 +72,18 @@ struct Reader {
   // --- states ---------------------------------------------------------------------------------
 
   struct Node {
+    uint8_t id;                      // NODE_* -- what clip lanes address
+    uint8_t parent;                  // the containing group's id; equal to `id` when this is a root
     uint8_t kind, flags;
     uint16_t colour;                 // RGB565, ready for the panel
     float ll[2], lts[2];
     const uint8_t* path;             // int16 tenths, or null
     uint16_t pathCount;              // numbers, not points
+
+    bool isRoot() const { return parent == id; }
+    // A group carries no geometry: it exists so a lane can address the pair, or one eye and its
+    // pupil together. The renderer skips it; the animation layer does not.
+    bool isGroup() const { return pathCount == 0; }
 
     float coord(int i) const { return rdS16(path + i * 2) / 10.0f; }
     // Copy the path out as floats, for the rasteriser. Returns the number written.
@@ -72,17 +101,19 @@ struct Reader {
     uint16_t left = 0;
     bool next(Node& n) {
       if (!left) return false;
-      n.kind = p[0];
-      n.flags = p[1];
-      n.colour = rd16(p + 2);
-      n.ll[0] = rdS16(p + 4) / 1000.0f;
-      n.ll[1] = rdS16(p + 6) / 1000.0f;
-      n.lts[0] = rdS16(p + 8) / 1000.0f;
-      n.lts[1] = rdS16(p + 10) / 1000.0f;
-      uint16_t cnt = rd16(p + 12);
+      n.id = p[0];
+      n.parent = p[1];
+      n.kind = p[2];
+      n.flags = p[3];
+      n.colour = rd16(p + 4);
+      n.ll[0] = rdS16(p + 6) / 1000.0f;
+      n.ll[1] = rdS16(p + 8) / 1000.0f;
+      n.lts[0] = rdS16(p + 10) / 1000.0f;
+      n.lts[1] = rdS16(p + 12) / 1000.0f;
+      uint16_t cnt = rd16(p + 14);
       n.pathCount = cnt;
-      n.path = cnt ? p + 14 : nullptr;
-      p += 14 + cnt * 2;
+      n.path = cnt ? p + NODE_HEAD : nullptr;
+      p += NODE_HEAD + cnt * 2;
       left--;
       return true;
     }
@@ -96,7 +127,7 @@ struct Reader {
       uint16_t nodes = rd16(p);
       const uint8_t* body = p + 2;
       if (s == index) { it.p = body; it.left = nodes; return it; }
-      for (uint16_t i = 0; i < nodes; i++) body += 14 + rd16(body + 12) * 2;
+      for (uint16_t i = 0; i < nodes; i++) body += NODE_HEAD + rd16(body + 14) * 2;
       p = body;
     }
     return it;
@@ -123,8 +154,10 @@ struct Reader {
   struct Lane {
     uint8_t keypath;
     uint8_t keyCount;
-    char object[12];                 // "" is the root
+    uint8_t target;                  // a NODE_* id, or LANE_ROOT for the scene root
     const uint8_t* keys;
+
+    bool drivesRoot() const { return target == LANE_ROOT; }
 
     bool key(uint8_t index, Key& k) const {
       const uint8_t* p = keys;
@@ -153,15 +186,12 @@ struct Reader {
     bool lane(uint8_t index, Lane& out) const {
       const uint8_t* p = lanes;
       for (uint8_t i = 0; i < laneCount; i++) {
-        uint8_t kp = p[0], keys = p[1], nameLen = p[2];
-        const uint8_t* name = p + 3;
-        const uint8_t* keyData = name + nameLen;
+        uint8_t kp = p[0], keys = p[1], target = p[2];
+        const uint8_t* keyData = p + 3;
         if (i == index) {
           out.keypath = kp;
           out.keyCount = keys;
-          uint8_t n = nameLen < 11 ? nameLen : 11;
-          memcpy(out.object, name, n);
-          out.object[n] = 0;
+          out.target = target;
           out.keys = keyData;
           return true;
         }
@@ -188,8 +218,11 @@ struct Reader {
         return true;
       }
       for (uint8_t i = 0; i < lanes; i++) {
-        uint8_t keys = body[1], nameLen = body[2];
-        const uint8_t* q = body + 3 + nameLen;
+        // keypath, keyCount, target -- three fixed bytes, then the keyframes. Before version 2 the
+        // third byte was a name LENGTH followed by that many bytes of name; skipping the old way
+        // walks off the end of the section.
+        uint8_t keys = body[1];
+        const uint8_t* q = body + 3;
         for (uint8_t j = 0; j < keys; j++) q += 6 + rd16(q + 4);
         body = q;
       }

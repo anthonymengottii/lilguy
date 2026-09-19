@@ -86,7 +86,11 @@ void test_the_blob_header_is_not_the_reader_header() {
   // The generated array and the hand-written reader are different files with adjacent names; once,
   // they were the same file. If lark_data.h were ever clobbered again this translation unit would
   // not compile -- but assert the two symbols coexist so the failure is a message, not a mystery.
-  TEST_ASSERT_EQUAL_UINT32(13892, LARK_DATA_LEN);
+  // 15730 since version 2. It grew 1838 bytes over version 1's 13892: the states gained the three
+  // groups and a two-byte id/parent per node (+2060), while the clips shrank by storing lane
+  // targets as one-byte ids instead of names (-222). That is what `rot` and `rot3d` cost -- before
+  // it, they played on the device and drew nothing.
+  TEST_ASSERT_EQUAL_UINT32(15730, LARK_DATA_LEN);
   lark::Reader rd;
   TEST_ASSERT_TRUE(rd.open(LARK_DATA, LARK_DATA_LEN));
 }

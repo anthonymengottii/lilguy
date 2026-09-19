@@ -130,7 +130,12 @@ button.danger { color: var(--danger); }
 .lane { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); align-items: center; gap: .5rem; }
 .lane-name {
   display: flex; flex-direction: column; gap: 1px; font-size: .78rem; overflow: hidden;
+  align-items: flex-start; text-align: left;
+  background: none; border: 1px solid transparent; border-radius: 7px;
+  padding: .15rem .35rem; cursor: pointer; color: inherit; white-space: normal;
 }
+.lane-name:hover { border-color: var(--line); }
+.lane-name.active { border-color: var(--accent); }
 .lane-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lane-name .kp { color: var(--muted); font-size: .72rem; }
 .lane-name .ro { color: var(--muted); font-size: .66rem; opacity: .8; }
@@ -157,6 +162,43 @@ button.danger { color: var(--danger); }
 .playhead.thin { width: 1px; opacity: .5; }
 
 .addlane { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+
+/* ---- curve graph ---- */
+
+.curve-legend {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  margin-bottom: .4rem; font-size: .78rem;
+}
+.curve-legend .lane-target { color: var(--fg); }
+.curve-legend .lane-target b { font-weight: 600; }
+.curve-legend .hint { margin: 0; }
+.nowrap { white-space: nowrap; }
+button.series {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .12rem .5rem; font-size: .76rem; border-radius: 999px;
+}
+button.series i {
+  width: .6rem; height: .6rem; border-radius: 50%; background: var(--c); display: inline-block;
+}
+button.series.off { opacity: .4; }
+button.series.off i { background: transparent; box-shadow: inset 0 0 0 1px var(--muted); }
+
+.curve-svg { display: block; touch-action: none; user-select: none; cursor: crosshair; }
+.curve-svg .grid { stroke: var(--line); stroke-width: 1; }
+/* The rest baseline: where `u: true` keyframes sit, since they carry no number of their own. */
+.curve-svg .rest { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .6; }
+.curve-svg .axis { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.curve-svg .playhead-line { stroke: var(--accent); stroke-width: 1.5; opacity: .8; }
+.curve-line { fill: none; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.curve-key {
+  fill: var(--panel); stroke: var(--c); stroke-width: 2; cursor: grab;
+}
+.curve-key:hover { fill: var(--c); }
+.curve-key.sel { fill: var(--c); stroke: var(--fg); }
+/* A rest keyframe has no authored value — hollow, so it does not read as a number someone chose. */
+.curve-key.rest { stroke-dasharray: 2 2; }
+.curve-key:active { cursor: grabbing; }
+.curve-empty { padding: .4rem 0; }
 
 /* ---- inspector ---- */
 

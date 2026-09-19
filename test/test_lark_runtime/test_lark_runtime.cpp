@@ -49,12 +49,14 @@ static bool findClip(const char* want, lark::Reader::Clip& out) {
   }
   return false;
 }
-static bool findLane(const lark::Reader::Clip& clip, uint8_t kp, const char* obj,
+// Lanes address nodes by id since version 2 of the packed data -- names were dropped, which is what
+// left `rot` and `rot3d` unable to find the groups they drive.
+static bool findLane(const lark::Reader::Clip& clip, uint8_t kp, uint8_t target,
                      lark::Reader::Lane& out) {
   for (uint8_t i = 0; i < clip.laneCount; i++) {
     lark::Reader::Lane l;
     clip.lane(i, l);
-    if (l.keypath == kp && strcmp(l.object, obj) == 0) { out = l; return true; }
+    if (l.keypath == kp && l.target == target) { out = l; return true; }
   }
   return false;
 }
@@ -87,7 +89,7 @@ void test_blink_pupil_opacity_steps_rather_than_fades() {
   lark::Reader::Clip clip;
   TEST_ASSERT_TRUE(findClip("blink", clip));
   lark::Reader::Lane lane;
-  TEST_ASSERT_TRUE(findLane(clip, lark::KP_O, "pup_l", lane));
+  TEST_ASSERT_TRUE(findLane(clip, lark::KP_O, lark::NODE_PUP_L, lane));
 
   // From lark.js: 1 through t=233, 0 at 250 and 280, back to 1 at 300.
   // Curve 0 read as a jump-to-target instead would give 0 from t=151.
@@ -108,7 +110,7 @@ void test_lid_morph_matches_the_js() {
   lark::Reader::Clip clip;
   TEST_ASSERT_TRUE(findClip("blink", clip));
   lark::Reader::Lane lane;
-  TEST_ASSERT_TRUE(findLane(clip, lark::KP_P, "eye_l", lane));
+  TEST_ASSERT_TRUE(findLane(clip, lark::KP_P, lark::NODE_EYE_L, lane));
 
   // 1b's eye_l rest pose, which the `u: true` keyframes resolve to.
   static const float REST[24] = {

@@ -217,14 +217,9 @@ struct Behavior {
       if (pick >= 0) play(pick, now, CAT_BLINK);
       if (rng.unit() > 0.1f) { /* gate 6, as above */ }
     }
-    // rot and rot3d are scheduled and started faithfully, but they currently DRAW NOTHING, and that
-    // is a data limitation rather than an oversight here. Their lanes target `eyes`, `group_eye_l`
-    // and `group_eye_r` -- groups -- while tools/lark_pack.py drops node names and leaves nodes
-    // identified by kind and side. Kind+side resolves `eye_l/r` and `pup_l/r` exactly, which covers
-    // idle, both pupil drifts, pup_scale and all three blinks; it cannot tell one group from
-    // another. Making these two rules visible means teaching the packer to keep group identity and
-    // the scene to apply `r`/`t3d` at the group level. They are left running so the timing and the
-    // category eviction stay honest, and so that change is the only one needed.
+    // rot turns the pair about `eyes`; rot3d_2 turns each eye about its own group. Both target
+    // GROUPS, which version 1 of the packed data could not address -- they ran and drew nothing.
+    // Version 2 carries node ids and the groups themselves, so they reach the pixels.
     if (now >= nextRot) {
       scheduleRot(now);
       int16_t pick = pickOne(iRot, 4);
@@ -243,25 +238,24 @@ struct Behavior {
     return n;
   }
 
-  // Which lane object a node answers to. The packed data drops node NAMES -- it keeps kind and
-  // geometry -- so a lane's object string is matched against what the node is and which side of the
-  // pair it sits on, which for this data is exact: across every clip these five rules play, the
-  // only named objects are `eye_l`, `eye_r`, `pup_l`, `pup_r` and the root "".
+  // Does this lane drive this node?
   //
-  // The exception is deliberate and visible in `rot`/`rot3d`: those drive `eyes`, `group_eye_l` and
-  // `group_eye_r`, which are GROUPS, and a group is not distinguishable from another group by kind
-  // and side alone. Those two rules therefore play no lanes here. Fixing it means teaching the
-  // packer to keep group identity -- see the note in update().
-  static bool laneMatches(const char* object, uint8_t kind, float sideSign) {
-    if (object[0] == '\0') return false;          // the root is resolved by lookFor, not per node
-    bool wantRight = false;
-    int len = 0;
-    while (object[len]) len++;
-    if (len >= 2 && object[len - 2] == '_') wantRight = (object[len - 1] == 'r');
-    else return false;                             // no side suffix: a group, which we cannot place
-    if ((sideSign > 0) != wantRight) return false;
-    if (object[0] == 'e' && object[1] == 'y' && object[2] == 'e') return kind == KIND_EYE;
-    if (object[0] == 'p' && object[1] == 'u' && object[2] == 'p') return kind == KIND_PUPIL;
+  // A lane targets one node id. It applies to that node, and -- because a lane on a GROUP moves
+  // everything the group contains -- to every node beneath it. `rot` drives `eyes`, which contains
+  // both eye groups and therefore all four of the eyes and pupils; `rot3d_2` drives `group_eye_l`
+  // and `group_eye_r` separately, which is how it turns each eye about its own anchor.
+  //
+  // Until version 2 of the packed data this was matched by NAME against kind and side, because the
+  // pack dropped node names. That resolved eye_l/r and pup_l/r exactly but could not tell one group
+  // from another, so `rot` and `rot3d` played on the device and drew nothing at all.
+  static bool laneDrives(const Reader::Lane& lane, uint8_t nodeId, uint8_t parentId) {
+    if (lane.drivesRoot()) return false;          // the root is resolved by lookFor, not per node
+    if (lane.target == nodeId) return true;
+    // One level of containment covers the whole hierarchy: eyes -> group_eye_* -> eye_*/pup_*.
+    if (lane.target == parentId) return true;
+    // `eyes` contains the eye groups, which contain the leaves -- so a lane on `eyes` reaches a
+    // pupil two levels down.
+    if (lane.target == NODE_EYES && (parentId == NODE_GROUP_L || parentId == NODE_GROUP_R)) return true;
     return false;
   }
 
@@ -277,7 +271,7 @@ struct Behavior {
   // The pupils' `o` lane is SKIPPED. It is not literal alpha: honouring it leaves an open eye with
   // no pupil in it, and 900 frames of the reference never show a lid over 90% open with the pupil
   // under half size. The lid clip alone removes the pupil at each closed frame.
-  void channelsForNode(uint8_t kind, float sideSign, uint32_t now,
+  void channelsForNode(uint8_t nodeId, uint8_t parentId, uint8_t kind, uint32_t now,
                        const float* rest, int restCount, Channels& out) const {
     out.clear();
     if (!data) return;
@@ -293,7 +287,7 @@ struct Behavior {
       for (uint8_t li = 0; li < c.laneCount; li++) {
         Reader::Lane lane;
         if (!c.lane(li, lane)) continue;
-        if (!laneMatches(lane.object, kind, sideSign)) continue;
+        if (!laneDrives(lane, nodeId, parentId)) continue;
         if (lane.keypath == KP_O && kind == KIND_PUPIL) continue;
 
         Channel* ch = out.byKeypath(lane.keypath);
@@ -323,7 +317,7 @@ struct Behavior {
       for (uint8_t li = 0; li < c.laneCount; li++) {
         Reader::Lane lane;
         if (!c.lane(li, lane)) continue;
-        if (lane.object[0] != '\0') continue;
+        if (!lane.drivesRoot()) continue;
         Channel* ch = out.byKeypath(lane.keypath);
         if (!ch) continue;
         sampleLane(lane, t, nullptr, 0, *ch);

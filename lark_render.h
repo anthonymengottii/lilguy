@@ -146,9 +146,9 @@ static uint32_t gLarkNow = 0;    // the frame's timestamp, for the channel callb
 
 // The bridge from the scene's per-node callback into the behaviour layer. A free function because
 // ChannelSource is a plain function pointer -- no vtable in the render path.
-static void larkChannelSource(uint8_t kind, float sideSign, const float* rest, int restCount,
-                              lark::Channels& out, void* ctx) {
-  ((lark::Behavior*)ctx)->channelsForNode(kind, sideSign, gLarkNow, rest, restCount, out);
+static void larkChannelSource(uint8_t nodeId, uint8_t parentId, uint8_t kind,
+                              const float* rest, int restCount, lark::Channels& out, void* ctx) {
+  ((lark::Behavior*)ctx)->channelsForNode(nodeId, parentId, kind, gLarkNow, rest, restCount, out);
 }
 
 // The lid each pupil clips to, for THIS frame. During a blink the pupil must clip to the eye's
@@ -158,12 +158,14 @@ static void larkUpdateLids(uint32_t now) {
   larkCollectLids();                 // rest poses first: the fallback when no clip drives `p`
   lark::Channels ch;
 
-  gLarkBehavior.channelsForNode(lark::KIND_EYE, -1.0f, now, gLarkLidL, gLarkLidLCount, ch);
+  gLarkBehavior.channelsForNode(lark::NODE_EYE_L, lark::NODE_GROUP_L, lark::KIND_EYE,
+                                now, gLarkLidL, gLarkLidLCount, ch);
   if (ch.p.present && ch.p.pathCount) {
     gLarkLidLCount = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
     for (int i = 0; i < gLarkLidLCount; i++) gLarkLidL[i] = ch.p.path[i];
   }
-  gLarkBehavior.channelsForNode(lark::KIND_EYE, 1.0f, now, gLarkLidR, gLarkLidRCount, ch);
+  gLarkBehavior.channelsForNode(lark::NODE_EYE_R, lark::NODE_GROUP_R, lark::KIND_EYE,
+                                now, gLarkLidR, gLarkLidRCount, ch);
   if (ch.p.present && ch.p.pathCount) {
     gLarkLidRCount = ch.p.pathCount < 28 ? ch.p.pathCount : 28;
     for (int i = 0; i < gLarkLidRCount; i++) gLarkLidR[i] = ch.p.path[i];
