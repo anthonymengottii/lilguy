@@ -452,3 +452,92 @@ test('the hole toggle punches rather than paints', async ({ page }) => {
   // And the swatch disables itself, because there is no colour to show.
   await expect(page.locator('.colour-panel input[type="color"]')).toBeDisabled();
 });
+
+test('dragging a node on the stage moves it', async ({ page }) => {
+  // A drag edits the node's outline in the STATE, so the move applies to every clip and survives
+  // export — the same place a colour change lands.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  const box = await page.locator('canvas').boundingBox();
+  const at = (px, py) => ({
+    x: box.x + (px / 240) * box.width,
+    y: box.y + (py / 240) * box.height,
+  });
+
+  // The left pupil's centroid, found by its own colour rather than by a guessed pixel.
+  const pupilY = () => page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(0, 0, 240, 240).data;
+    let sy = 0, n = 0;
+    for (let y = 0; y < 240; y++) {
+      for (let x = 0; x < 120; x++) {
+        const i = (y * 240 + x) * 4;
+        if (d[i] < 60 && d[i + 1] > 80 && d[i + 1] < 140 && d[i + 2] > 60 && d[i + 2] < 110) {
+          sy += y;
+          n++;
+        }
+      }
+    }
+    return n ? sy / n : null;
+  });
+
+  const before = await pupilY();
+  expect(before, 'the left pupil should be visible to start with').not.toBeNull();
+
+  const from = at(73, 120);
+  const to = at(73, 150);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) {
+    await page.mouse.move(from.x, from.y + ((to.y - from.y) * i) / 10);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+
+  const after = await pupilY();
+  expect(after - before, 'the pupil should follow the drag downward').toBeGreaterThan(15);
+
+  // The move is in the document, and its coordinates are exact tenths — tools/lark_pack.py asserts
+  // that rather than rounding, so a drag that produced arbitrary floats would fail the export.
+  const exported = await page.evaluate(async () => {
+    let captured = null;
+    const realCreate = URL.createObjectURL;
+    URL.createObjectURL = (blob) => { captured = blob; return 'blob:stub'; };
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function noop() {};
+    document.querySelector('.titlebar button:last-of-type').click();
+    HTMLAnchorElement.prototype.click = realClick;
+    URL.createObjectURL = realCreate;
+    return captured ? JSON.parse(await captured.text()) : null;
+  });
+  const p = exported.states['1b'].objs.pup_l.p;
+  for (const v of p) {
+    expect(Math.abs(Math.round(v * 10) - v * 10), `${v} must be an exact tenth`).toBeLessThan(1e-6);
+  }
+
+  // And one undo takes the whole gesture back, not one pixel of it.
+  await page.locator('button:has-text("desfazer")').click();
+  await page.waitForTimeout(400);
+  expect(await pupilY(), 'one undo should restore the original position').toBeCloseTo(before, 0);
+});
+
+test('play restarts a one-shot clip that has run to the end', async ({ page }) => {
+  // A finished one-shot leaves the playhead ON the end. Pressing play there used to start and stop
+  // in the same frame, which looks like a dead button.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+  await pickClip(page, 'blink');
+  await page.waitForTimeout(300);
+
+  const time = () => page.locator('.transport .time').textContent();
+  await scrubber(page).fill('783');          // blink's own duration
+  await page.waitForTimeout(200);
+  expect((await time()).trim()).toBe('0.78s / 0.78s');
+
+  await page.locator('button.play').click();
+  await page.waitForTimeout(300);
+  const mid = parseFloat((await time()).trim());
+  expect(mid, 'play should rewind and run, not sit at the end').toBeGreaterThan(0);
+  expect(mid, 'and still be partway through').toBeLessThan(0.78);
+});

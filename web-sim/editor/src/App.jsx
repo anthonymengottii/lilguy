@@ -83,6 +83,15 @@ export default function App() {
     setTimeMs(Math.max(0, Math.min(duration, ms)));
   }, [duration]);
 
+  // Play/pause. A one-shot clip that has run to the end leaves the playhead ON the end, so pressing
+  // play there would start and stop in the same frame and look like a dead button. Rewind first.
+  const togglePlay = useCallback(() => {
+    setPlaying((p) => {
+      if (!p && timeMs >= duration) setTimeMs(0);
+      return !p;
+    });
+  }, [timeMs, duration]);
+
   const selectClip = useCallback((name) => {
     setClipName(name);
     setSelection(null);
@@ -168,6 +177,13 @@ export default function App() {
     apply((d) => C.setNodeColour(d, stateId, newObj, hex), `colour:${stateId}:${newObj}`);
   }, [apply, stateId, newObj]);
 
+  // Dragging a node on the stage moves its outline in the STATE, so the move applies to every clip
+  // and survives export. One merge key for the whole gesture: a drag fires per pointer event, and
+  // one undo step per pixel makes undo useless.
+  const moveNode = useCallback((node, dx, dy) => {
+    apply((d) => C.moveNode(d, stateId, node, dx, dy), `move:${stateId}:${node}`);
+  }, [apply, stateId]);
+
   // ---- file ------------------------------------------------------------------------------------
 
   const exportJson = useCallback(() => {
@@ -220,7 +236,7 @@ export default function App() {
         return;
       }
       if (typing) return;
-      if (e.code === 'Space') { e.preventDefault(); setPlaying((p) => !p); }
+      if (e.code === "Space") { e.preventDefault(); togglePlay(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); scrub(timeMs - (e.shiftKey ? 100 : 10)); }
       if (e.key === 'ArrowRight') { e.preventDefault(); scrub(timeMs + (e.shiftKey ? 100 : 10)); }
     };
@@ -368,10 +384,11 @@ export default function App() {
               onLook={setLook}
               selected={newObj}
               onPick={(n) => n && setNewObj(n)}
+              onMove={moveNode}
             />
           </div>
           <div className="transport">
-            <button type="button" className="play" onClick={() => setPlaying((p) => !p)}>
+            <button type="button" className="play" onClick={togglePlay}>
               {playing ? '⏸' : '▶'}
             </button>
             <input

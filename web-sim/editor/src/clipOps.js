@@ -44,6 +44,30 @@ export function setNodeColour(data, stateId, node, hex) {
   };
 }
 
+// Move one node's outline inside one state.
+//
+// The path is 24 numbers — 12 (x, y) points — so translating is adding the delta to every pair.
+// This edits the STATE's geometry, which is what makes it apply to every clip and survive export,
+// exactly as a colour change does.
+//
+// COORDINATES ARE ROUNDED TO TENTHS. Not cosmetic: tools/lark_pack.py stores them as int16 tenths
+// and ASSERTS the value is an exact tenth rather than rounding, because a silent rounding there
+// would be a shape that differs from the one authored. A drag produces arbitrary floats, so the
+// rounding has to happen here, where it is visible, or the export refuses the file.
+export function moveNode(data, stateId, node, dx, dy) {
+  const state = data.states?.[stateId];
+  const obj = state?.objs?.[node];
+  if (!obj?.p || !obj.p.length) return data;
+  const p = obj.p.map((v, i) => Math.round((v + (i % 2 === 0 ? dx : dy)) * 10) / 10);
+  return {
+    ...data,
+    states: {
+      ...data.states,
+      [stateId]: { ...state, objs: { ...state.objs, [node]: { ...obj, p } } },
+    },
+  };
+}
+
 // A keyframe's value for each keypath when nothing else is specified. `u: true` means "the node's
 // rest value" and carries no `v` at all.
 export function defaultValueFor(keypath) {

@@ -80,11 +80,12 @@ function hitTest(LarkRuntimeCtor, data, stateId, clipName, timeMs, look, x, y) {
 }
 
 export default function Stage({
-  data, stateId, clipName, timeMs, background, look, onLook, onPick, selected,
+  data, stateId, clipName, timeMs, background, look, onLook, onPick, onMove, selected,
 }) {
   const canvasRef = useRef(null);
   const rtRef = useRef(null);
   const frameRef = useRef(null);
+  const dragRef = useRef(null);
   // Held in a ref rather than a dependency: the selection changes far more often than the draw
   // loop should be torn down and rebuilt, and the loop reads it fresh on every frame anyway.
   const selectedRef = useRef(selected);
@@ -173,10 +174,54 @@ export default function Stage({
     return () => cancelAnimationFrame(frameRef.current);
   }, [data, clipName, timeMs, background, look]);
 
-  // The pointer normalisation is the original's own: unit direction times distance over the smaller
-  // WINDOW dimension, capped at 2. Copied from artifact-page.js rather than re-derived, so the
-  // preview's gaze matches the published page's exactly.
+  // Canvas-relative position in PANEL units. The canvas is displayed larger than its 240px backing
+  // store, so a CSS pixel is not a panel pixel and using one for the other picks the wrong place.
+  const panelPos = (e, el) => {
+    const r = el.getBoundingClientRect();
+    return {
+      x: ((e.clientX - r.left) / r.width) * PANEL,
+      y: ((e.clientY - r.top) / r.height) * PANEL,
+    };
+  };
+
+  // Press: pick the node under the cursor and arm a drag.
+  const handleDown = (e) => {
+    if (!onPick) return;
+    const { x, y } = panelPos(e, e.currentTarget);
+    const hit = hitTest(LarkRuntime, data, stateId, clipName, timeMs, look, x, y);
+    if (hit) onPick(hit);
+    if (hit && onMove) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      // `applied` tracks how far the node has ACTUALLY been moved, which is not the same as how far
+      // the cursor has travelled: the data stores tenths, so each step is rounded. Accumulating raw
+      // deltas would let that rounding error compound and the node drift away from the cursor over
+      // a long drag. Measuring against the drag's origin each time keeps them together.
+      dragRef.current = { node: hit, originX: x, originY: y, appliedX: 0, appliedY: 0 };
+    }
+  };
+
   const handleMove = (e) => {
+    const drag = dragRef.current;
+    if (drag) {
+      const { x, y } = panelPos(e, e.currentTarget);
+      // Panel pixels back into authoring units: the scene is drawn at SCENE_SCALE, so a 1px drag on
+      // screen is 1/0.65 units in the data. Without this the node lags the cursor by a third.
+      const wantX = (x - drag.originX) / SCENE_SCALE;
+      const wantY = (y - drag.originY) / SCENE_SCALE;
+      // Send only the part not yet applied, and remember what the data rounded it to.
+      const stepX = Math.round((wantX - drag.appliedX) * 10) / 10;
+      const stepY = Math.round((wantY - drag.appliedY) * 10) / 10;
+      if (stepX || stepY) {
+        drag.appliedX += stepX;
+        drag.appliedY += stepY;
+        onMove(drag.node, stepX, stepY);
+      }
+      return;
+    }
+
+    // Not dragging: the pointer drives the gaze. The normalisation is the original's own — unit
+    // direction times distance over the smaller WINDOW dimension, capped at 2 — copied from
+    // artifact-page.js rather than re-derived, so the preview matches the published page.
     const r = e.currentTarget.getBoundingClientRect();
     const dx = e.clientX - (r.left + r.width / 2);
     const dy = e.clientY - (r.top + r.height / 2);
@@ -186,16 +231,7 @@ export default function Stage({
     onLook([(dx / mag) * scale, (dy / mag) * scale]);
   };
 
-  // Clicking picks the node under the cursor. The canvas is displayed larger than its 240px backing
-  // store, so the click has to be scaled back into panel coordinates before the id pass is read —
-  // using CSS pixels directly would pick whatever sits at a fraction of the real position.
-  const handleClick = (e) => {
-    if (!onPick) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * PANEL;
-    const y = ((e.clientY - r.top) / r.height) * PANEL;
-    onPick(hitTest(LarkRuntime, data, stateId, clipName, timeMs, look, x, y));
-  };
+  const handleUp = () => { dragRef.current = null; };
 
   return (
     <div className="bezel">
@@ -203,10 +239,12 @@ export default function Stage({
         ref={canvasRef}
         width={PANEL}
         height={PANEL}
-        style={{ cursor: onPick ? 'pointer' : 'default' }}
+        style={{ cursor: onMove ? 'move' : (onPick ? 'pointer' : 'default') }}
+        onPointerDown={handleDown}
         onPointerMove={handleMove}
-        onPointerLeave={() => onLook([0, 0])}
-        onClick={handleClick}
+        onPointerUp={handleUp}
+        onPointerCancel={handleUp}
+        onPointerLeave={() => { if (!dragRef.current) onLook([0, 0]); }}
       />
     </div>
   );
