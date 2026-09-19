@@ -83,6 +83,63 @@ test('the editor loads and draws the eyes', async ({ page }) => {
   expect(errors, 'no page errors').toEqual([]);
 });
 
+test('the stage maps the authoring space onto the disc', async ({ page }) => {
+  // The bug this exists for: Stage drew straight into the canvas without the authoring-space
+  // transform the published page applies. `draw` renders in 400x400 units, so an unmapped 240px
+  // canvas showed the scene at 1:1 — most of the second eye off the right edge, the bottom cut off
+  // at y=239. Every other test here still passed, because they only asked whether there was ink and
+  // whether it changed, never WHERE it was.
+  //
+  // The figures are the ones this project already measures elsewhere: state 1b draws two eyes
+  // 93px wide with their centres 98px apart (web-sim/tools/baseline/states.json, and the same
+  // numbers in lark_scene.h's tests).
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  const geom = await page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const lit = (x, y) => { const i = (y * c.width + x) * 4; return d[i] > 24 || d[i + 1] > 24 || d[i + 2] > 24; };
+
+    // Column scan, not a split down the middle: halving the canvas clips a deflected eye, and
+    // measuring that way once sent a whole turn model the wrong way round.
+    const cols = [];
+    for (let x = 0; x < c.width; x++) {
+      let on = false;
+      for (let y = 0; y < c.height; y++) if (lit(x, y)) { on = true; break; }
+      cols.push(on);
+    }
+    const blobs = [];
+    let start = -1;
+    for (let x = 0; x <= c.width; x++) {
+      const on = x < c.width && cols[x];
+      if (on && start < 0) start = x;
+      if (!on && start >= 0) { if (x - start >= 6) blobs.push({ x0: start, x1: x - 1 }); start = -1; }
+    }
+    let top = c.height, bot = -1;
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) if (lit(x, y)) { if (y < top) top = y; if (y > bot) bot = y; break; }
+    }
+    return { w: c.width, h: c.height, top, bot, blobs };
+  });
+
+  expect(geom.blobs.length, 'the two eyes should be separate blobs').toBe(2);
+  for (const b of geom.blobs) {
+    expect(b.x1 - b.x0 + 1, 'each eye is about 93px wide').toBeGreaterThan(80);
+    expect(b.x1 - b.x0 + 1, 'each eye is about 93px wide').toBeLessThan(106);
+  }
+  const gap = ((geom.blobs[1].x0 + geom.blobs[1].x1) - (geom.blobs[0].x0 + geom.blobs[0].x1)) / 2;
+  expect(gap, 'the eye centres sit ~98px apart').toBeGreaterThan(88);
+  expect(gap, 'the eye centres sit ~98px apart').toBeLessThan(108);
+
+  // Nothing may touch an edge: the drawing lives inside the disc, and ink at y=239 means it is
+  // being cut off rather than framed.
+  expect(geom.top, 'the drawing must not touch the top edge').toBeGreaterThan(2);
+  expect(geom.bot, 'the drawing must not be cut off at the bottom').toBeLessThan(geom.h - 3);
+  expect(geom.blobs[0].x0, 'nor the left edge').toBeGreaterThan(2);
+  expect(geom.blobs[1].x1, 'nor the right edge').toBeLessThan(geom.w - 3);
+});
+
 test('playing a blink closes the eyes', async ({ page }) => {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(800);

@@ -12,6 +12,22 @@ import { LarkRuntime } from '@lark';
 // (GC9A01) the ocellus ships on. What is drawn here is what the hardware draws; the browser only
 // scales it up for the screen.
 const PANEL = 240;
+const RADIUS = PANEL / 2;
+
+// The authoring space is 400x400 and the scene sits centred on (196, 188) inside it -- measured
+// across all 36 states and every clip: the union of drawn pixels is x 15..377, y 42..334. The
+// drawing has to be mapped onto the disc, and skipping that map is not a cosmetic slip: `draw`
+// renders in authoring units, so an unmapped canvas shows the scene at 1:1 with most of the second
+// eye off the right edge and the bottom cut off at y=239.
+//
+// The same three numbers appear in tools/artifact-page.js and in lark_scene.h. They are the single
+// mapping from authoring space to the panel, so all three must agree or the browser, the published
+// page and the device each draw the eyes at a different size.
+const SCENE_CX = 196;
+const SCENE_CY = 188;
+// 0.65 is the last scale that never touches the disc's mask in a pose anyone holds, and is 11%
+// larger than the figure that clips nothing anywhere.
+const SCENE_SCALE = 0.65;
 
 export default function Stage({ data, stateId, clipName, timeMs, background, look, onLook }) {
   const canvasRef = useRef(null);
@@ -44,8 +60,29 @@ export default function Stage({ data, stateId, clipName, timeMs, background, loo
           rt.active.push({ clip, name: clipName, start: now - t, category: null });
         }
         rt.setLook(look[0], look[1]);
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, PANEL, PANEL);
-        rt.draw(ctx, now, { width: PANEL, height: PANEL, background });
+        if (background) {
+          ctx.fillStyle = background;
+          ctx.fillRect(0, 0, PANEL, PANEL);
+        }
+
+        // Clip to the disc. Not decoration: it is the panel's actual shape, and anything outside it
+        // does not exist on the device. Doing it here rather than with a CSS border-radius means a
+        // screenshot of this canvas is what the hardware would show.
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(RADIUS, RADIUS, RADIUS, 0, Math.PI * 2);
+        ctx.clip();
+
+        // Authoring space (400x400, scene centred on 196,188) -> the 240px disc.
+        ctx.translate(RADIUS, RADIUS);
+        ctx.scale(SCENE_SCALE, SCENE_SCALE);
+        ctx.translate(-SCENE_CX, -SCENE_CY);
+        rt.draw(ctx, now, { width: 400, height: 400 });
+        ctx.restore();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
       }
       frameRef.current = requestAnimationFrame(draw);
     };
