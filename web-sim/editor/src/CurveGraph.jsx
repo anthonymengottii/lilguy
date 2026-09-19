@@ -15,8 +15,8 @@ import { FIELDS, lanesOf } from './clipOps';
 // particular is a STEP that holds its source value, and drawing it as a ramp would misrepresent
 // every keyframe that uses it.
 
-const PAD = { l: 44, r: 12, t: 14, b: 22 };
-const H = 260;
+const PAD = { l: 48, r: 14, t: 14, b: 20 };
+const MIN_H = 180;
 
 // Per-component colours. Distinct in both themes, and consistent across lanes so `x` is always the
 // same colour whichever lane is open.
@@ -43,7 +43,8 @@ function restFor(keypath) {
 }
 
 export default function CurveGraph({
-  clip, lane, laneIndex, selection, onSelect, onMoveKey, onSetComponent, onScrub, timeMs, width,
+  clip, lane, laneIndex, selection, onSelect, onMoveKey, onSetComponent, onScrub, timeMs,
+  width, height,
 }) {
   const svgRef = useRef(null);
   const dragRef = useRef(null);
@@ -54,7 +55,9 @@ export default function CurveGraph({
   const names = FIELDS[keypath] || ['v'];
   const isPath = keypath === 'p';
 
+  // The graph fills whatever the pane gives it: it is the working surface, so it gets the room.
   const W = Math.max(320, width || 640);
+  const H = Math.max(MIN_H, height || 240);
   const plotW = W - PAD.l - PAD.r;
   const plotH = H - PAD.t - PAD.b;
 

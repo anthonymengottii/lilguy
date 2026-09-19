@@ -1,210 +1,327 @@
-/* Editor chrome. Follows the artifact page's palette so the two do not look like different projects,
-   but laid out for a workbench rather than a showcase: two columns, the preview pinned on the left
-   while the timeline and inspector scroll on the right. */
+/* Laid out like the tool this data came from: a full-screen dark workbench, not a centred page.
+   Columns left to right — states and clips, the object tree, the stage, the property panels — with
+   the curve editor spanning the full width underneath. That arrangement is not decoration: the
+   graph is where the authoring happens, so it gets the width, and everything that selects WHAT you
+   are editing stays in narrow rails around it.
+
+   Dark only. The original is a dark tool and the stage is a black panel; a light theme would put a
+   white page behind a black disc and misrepresent what the hardware shows. */
 
 :root {
-  color-scheme: light dark;
-  --bg: #f6f6f4;
-  --fg: #1a1a1a;
-  --muted: #6b6b66;
-  --line: #dedddA;
-  --panel: #ffffff;
-  --stage: #0f0f10;
-  --accent: #3b6ea5;
-  --danger: #a5453b;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121213;
-    --fg: #ececea;
-    --muted: #8f8f89;
-    --line: #2a2a2c;
-    --panel: #1a1a1c;
-    --stage: #000000;
-    --accent: #7aa7d9;
-    --danger: #d98a7a;
-  }
+  color-scheme: dark;
+  --bg: #1c1c1e;
+  --panel: #252528;
+  --panel-2: #2c2c30;
+  --fg: #e8e8e6;
+  --muted: #8b8b90;
+  --line: #3a3a3f;
+  --stage: #000;
+  --accent: #4a8cd0;
+  --accent-dim: #2f5980;
+  --danger: #c9695c;
+  --rail: 210px;
+  --tree: 190px;
+  --props: 250px;
+  --bar: 30px;
+  /* One row height shared by the lane rail and the keyframe ruler beside it. They are read across
+     as one band — a lane's name, its keyframe times, its curve — so they must line up exactly, and
+     a single variable is the only way that survives an edit to either. */
+  --lane-row: 30px;
+  --ruler-head: 18px;      /* the tick strip above the ruler's first row */
 }
 
 * { box-sizing: border-box; }
+html, body, #root { height: 100%; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 12.5px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
 }
 
-.app { max-width: 1200px; margin: 0 auto; padding: 1.5rem 16px 3rem; }
-header h1 { font-size: 1.2rem; margin: 0 0 .25rem; letter-spacing: -0.01em; }
-.sub { color: var(--muted); font-size: .86rem; margin: 0 0 1.2rem; }
-.sub a { color: inherit; }
-.dirty { color: var(--accent); }
-
-.columns { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
-@media (max-width: 860px) { .columns { grid-template-columns: minmax(0, 1fr); } }
-.left { position: sticky; top: 1rem; }
-@media (max-width: 860px) { .left { position: static; } }
-
-/* The panel is a disc, so its surround is one too — a rounded rectangle behind a round screen reads
-   as a screenshot of the drawing rather than as the device. */
-.bezel {
-  border-radius: 50%;
-  background: var(--stage);
-  border: 1px solid var(--line);
-  padding: 10px;
+/* The whole app is one grid: a title bar, a status strip, the working row, and the graph. */
+.app {
+  height: 100%;
   display: grid;
-  place-items: center;
-  width: min(100%, 360px);
-  aspect-ratio: 1;
-  margin: 0 auto;
+  /* The bottom half gets the larger share: the curve editor is the working surface, and a graph
+     squeezed to 150px cannot be aimed at. The stage only has to be legible, not large. */
+  grid-template-rows: var(--bar) var(--bar) minmax(0, 1fr) minmax(300px, 52%);
 }
+
+/* ---- chrome ---- */
+
+.titlebar {
+  display: flex; align-items: center; gap: .6rem;
+  padding: 0 .7rem; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.titlebar h1 { font-size: .82rem; font-weight: 600; margin: 0; letter-spacing: .01em; }
+.titlebar .spacer { flex: 1; }
+
+.statusbar {
+  display: flex; align-items: center; gap: .5rem; overflow-x: auto;
+  padding: 0 .7rem; border-bottom: 1px solid var(--line);
+  color: var(--muted); font-size: .72rem; white-space: nowrap;
+}
+.statusbar .chip {
+  padding: .1rem .45rem; border: 1px solid var(--line); border-radius: 5px; background: var(--panel);
+}
+.statusbar .ok { color: #5fae7a; }
+.statusbar .dirty { color: var(--accent); }
+.statusbar .spacer { flex: 1; }
+
+/* ---- the working row ---- */
+
+.workspace {
+  display: grid;
+  grid-template-columns: var(--rail) var(--tree) minmax(0, 1fr) var(--props);
+  min-height: 0;
+}
+.col {
+  min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+}
+.col:last-child { border-right: none; }
+.col.stage-col { background: var(--bg); }
+
+/* A titled, scrollable section inside a rail. */
+.section { display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--line); }
+.section.grow { flex: 1; }
+.section-head {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .3rem .55rem; background: var(--panel);
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+}
+.section-head .spacer { flex: 1; }
+.section-body { overflow: auto; min-height: 0; padding: .25rem; }
+
+/* ---- lists ---- */
+
+.list { display: flex; flex-direction: column; }
+.list button {
+  display: flex; align-items: center; gap: .4rem; width: 100%;
+  padding: .22rem .45rem; border: 1px solid transparent; border-radius: 5px;
+  background: none; color: var(--fg); font: inherit; font-size: .76rem;
+  text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden;
+}
+.list button:hover { background: var(--panel-2); }
+.list button.sel { background: var(--accent-dim); border-color: var(--accent); }
+.list button .tag { margin-left: auto; color: var(--muted); font-size: .66rem; }
+.list button.sel .tag { color: var(--fg); }
+
+/* ---- the object tree ---- */
+
+.tree button {
+  display: flex; align-items: center; gap: .3rem; width: 100%;
+  padding: .2rem .4rem; border: 1px solid transparent; border-radius: 5px;
+  background: none; color: var(--fg); font: inherit; font-size: .76rem;
+  text-align: left; cursor: pointer; white-space: nowrap;
+}
+.tree button:hover { background: var(--panel-2); }
+.tree button.sel { background: var(--accent-dim); border-color: var(--accent); }
+.tree .grp { color: var(--muted); }
+.tree .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+.tree .dot.eye { background: #6ff5d0; }
+.tree .dot.pup { background: #4a8cd0; }
+.tree .dot.hi { background: #d9b04a; }
+
+/* ---- the stage ---- */
+
+.stage-col { display: flex; flex-direction: column; min-height: 0; }
+.stage-wrap {
+  flex: 1; min-height: 0; min-width: 0; display: grid; place-items: center;
+  padding: .8rem; overflow: hidden;
+}
+/* The panel is a disc, so its surround is one too — a rounded rectangle behind a round screen
+   reads as a screenshot rather than as the device.
+   Sized against BOTH axes: `height: min(100%, X)` with an aspect-ratio lets the box grow past a
+   short container, because the ratio derives the width from a height the container never agreed
+   to. min() over 100cqh and 100cqw keeps it inside whichever axis runs out first. */
+.bezel {
+  border-radius: 50%; background: var(--stage); border: 1px solid var(--line);
+  padding: 8px; display: grid; place-items: center;
+  width: min(100%, 100cqh, 460px); aspect-ratio: 1;
+}
+.stage-wrap { container-type: size; }
 .bezel canvas {
-  width: 100%; height: auto; aspect-ratio: 1; display: block;
-  touch-action: none; border-radius: 50%;
+  width: 100%; height: 100%; display: block; touch-action: none; border-radius: 50%;
 }
 
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: .9rem;
-  margin-bottom: .9rem;
+.transport {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .4rem .7rem; border-top: 1px solid var(--line); background: var(--panel);
 }
-
-.transport { display: flex; align-items: center; gap: .6rem; margin-top: 1rem; }
 .transport input[type="range"] { flex: 1; min-width: 0; }
-.transport .time { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-button.play { font-size: 1rem; width: 2.2rem; }
-
-.row { display: flex; gap: .5rem; align-items: center; }
-.row.wrap { flex-wrap: wrap; }
-.row + .row { margin-top: .6rem; }
-.grow { flex: 1; min-width: 8rem; }
-
-.field { display: flex; gap: .45rem; align-items: center; margin-bottom: .5rem; }
-.field > span:first-child, .label {
-  font-size: .74rem; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--muted); min-width: 5.5rem;
+.transport .time {
+  color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.field.inline { margin-bottom: 0; }
-.field.inline > span:first-child { min-width: auto; }
-.field.check > span { min-width: auto; text-transform: none; letter-spacing: 0; font-size: .82rem; }
-.field input[type="number"] { width: 6rem; }
+button.play { width: 1.9rem; padding: .15rem 0; text-align: center; }
+
+/* ---- property panels ---- */
+
+.props { padding: .4rem; overflow: auto; min-height: 0; }
+.props .group { margin-bottom: .9rem; }
+.props .group-title {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin-bottom: .35rem;
+}
+.prop {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .4rem;
+  padding: .18rem .35rem; border-radius: 5px; margin-bottom: 2px;
+}
+.prop:nth-child(odd) { background: var(--panel); }
+.prop > span:first-child { color: var(--muted); font-size: .72rem; }
+.prop input, .prop select { text-align: right; }
+.prop input[type="checkbox"] { justify-self: end; }
+
+/* ---- controls ---- */
 
 input, select {
-  font: inherit; font-size: .85rem; padding: .3rem .45rem; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--bg); color: var(--fg); min-width: 0;
+  font: inherit; font-size: .76rem; padding: .16rem .3rem; border-radius: 5px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  min-width: 0; max-width: 100%;
 }
-input[type="color"] { width: 2.4rem; height: 1.9rem; padding: 2px; }
-input[type="checkbox"] { width: auto; }
+input[type="number"] { width: 5.2rem; font-variant-numeric: tabular-nums; }
+input[type="color"] { width: 2rem; height: 1.5rem; padding: 1px; }
+input[type="checkbox"] { width: auto; accent-color: var(--accent); }
 
 button, .filebtn {
-  font: inherit; font-size: .82rem; padding: .32rem .7rem; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--bg); color: var(--fg); white-space: nowrap;
+  font: inherit; font-size: .74rem; padding: .2rem .55rem; border-radius: 5px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); white-space: nowrap;
 }
-button:hover:not(:disabled), .filebtn:hover { border-color: var(--muted); }
-button:disabled { opacity: .45; cursor: default; }
+button:hover:not(:disabled), .filebtn:hover { border-color: var(--muted); background: var(--line); }
+button:disabled { opacity: .4; cursor: default; }
 button.danger { color: var(--danger); }
+button.icon { padding: .1rem .4rem; line-height: 1.2; }
 .filebtn { display: inline-block; }
 .filebtn input { display: none; }
 
-.hint { color: var(--muted); font-size: .84rem; margin: .5rem 0 0; }
-.hint.small { font-size: .78rem; }
-.hint code, .warn code { font-size: .95em; }
+.row { display: flex; gap: .35rem; align-items: center; }
+.row.wrap { flex-wrap: wrap; }
+.hint { color: var(--muted); font-size: .72rem; margin: .35rem 0 0; }
+.hint.small { font-size: .68rem; }
+.nowrap { white-space: nowrap; }
 .warn {
-  margin: .6rem 0 0; padding: .6rem .7rem; border-radius: 9px;
-  border: 1px solid var(--line); background: var(--bg);
-  color: var(--muted); font-size: .8rem;
+  margin: .35rem; padding: .4rem .5rem; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel);
+  color: var(--muted); font-size: .72rem;
 }
 .warn b { color: var(--fg); }
+code { font-size: .95em; }
 
-/* ---- timeline ---- */
+/* ---- the bottom half: lanes and the curve graph ---- */
 
-.timeline { display: flex; flex-direction: column; gap: .3rem; }
-.ruler {
-  position: relative; height: 1.3rem; margin-left: 9.5rem;
-  display: flex; justify-content: space-between;
-  font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums;
-  cursor: pointer; user-select: none;
+.editor-bottom {
+  display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
+  border-top: 1px solid var(--line); min-height: 0; background: var(--panel);
 }
-.lane { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); align-items: center; gap: .5rem; }
-.lane-name {
-  display: flex; flex-direction: column; gap: 1px; font-size: .78rem; overflow: hidden;
-  align-items: flex-start; text-align: left;
-  background: none; border: 1px solid transparent; border-radius: 7px;
-  padding: .15rem .35rem; cursor: pointer; color: inherit; white-space: normal;
+.lane-rail {
+  border-right: 1px solid var(--line); overflow: auto; min-height: 0;
+  display: flex; flex-direction: column;
 }
-.lane-name:hover { border-color: var(--line); }
-.lane-name.active { border-color: var(--accent); }
-.lane-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lane-name .kp { color: var(--muted); font-size: .72rem; }
-.lane-name .ro { color: var(--muted); font-size: .66rem; opacity: .8; }
+.graph-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.graph-host { flex: 1; min-height: 0; min-width: 0; display: flex; }
+/* No padding and no gaps: the rows here are indexed against the ruler's rows by position, so any
+   spacing one side has and the other does not shows up as drift down the list. */
+.lane-scroll {
+  overflow: hidden auto; min-height: 0; flex: 1;
+  /* Matches the ruler's tick strip, so row 1 of the names sits opposite row 1 of the keyframes. */
+  padding-top: var(--ruler-head);
+}
+.lanes { display: flex; flex-direction: column; }
 
-.track {
-  position: relative; height: 1.7rem; border-radius: 7px;
-  background: var(--bg); border: 1px solid var(--line); cursor: pointer;
-}
-.key {
-  position: absolute; top: 50%; width: 11px; height: 11px; padding: 0;
-  transform: translate(-50%, -50%) rotate(45deg);
-  border-radius: 2px; border: 1px solid var(--muted); background: var(--panel);
-  cursor: grab; touch-action: none;
-}
-.key:hover { border-color: var(--fg); }
-.key.sel { background: var(--accent); border-color: var(--accent); }
-.key.ro { border-style: dashed; opacity: .75; }
-.key:active { cursor: grabbing; }
+/* ---- lane list ---- */
 
-.playhead {
-  position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent);
-  pointer-events: none; opacity: .9;
+.lane-rail .lane-name {
+  display: flex; flex-direction: column; gap: 0; align-items: flex-start; text-align: left;
+  justify-content: center;
+  width: 100%; height: var(--lane-row); padding: 0 .45rem;
+  border: 1px solid transparent; border-radius: 4px;
+  background: none; color: inherit; font: inherit; font-size: .72rem; cursor: pointer;
+  white-space: nowrap; overflow: hidden; line-height: 1.15;
 }
-.playhead.thin { width: 1px; opacity: .5; }
+.lane-rail .lane-name:hover { background: var(--panel-2); }
+.lane-rail .lane-name.active { background: var(--accent-dim); border-color: var(--accent); }
+.lane-name b { font-weight: 600; }
+.lane-name .kp { color: var(--muted); font-size: .68rem; }
+.lane-name.active .kp { color: var(--fg); }
+.lane-name .ro { color: var(--muted); font-size: .64rem; }
 
-.addlane { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+.addlane {
+  display: flex; gap: .3rem; flex-wrap: wrap; align-items: center;
+  padding: .4rem; border-top: 1px solid var(--line); margin-top: auto;
+}
+.addlane select { flex: 1; min-width: 4.5rem; }
 
 /* ---- curve graph ---- */
 
+.curve { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; }
 .curve-legend {
-  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
-  margin-bottom: .4rem; font-size: .78rem;
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  padding: .3rem .6rem; border-bottom: 1px solid var(--line); font-size: .72rem;
 }
-.curve-legend .lane-target { color: var(--fg); }
 .curve-legend .lane-target b { font-weight: 600; }
 .curve-legend .hint { margin: 0; }
-.nowrap { white-space: nowrap; }
 button.series {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .12rem .5rem; font-size: .76rem; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: .25rem;
+  padding: .06rem .4rem; font-size: .7rem; border-radius: 999px;
 }
-button.series i {
-  width: .6rem; height: .6rem; border-radius: 50%; background: var(--c); display: inline-block;
-}
+button.series i { width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
 button.series.off { opacity: .4; }
 button.series.off i { background: transparent; box-shadow: inset 0 0 0 1px var(--muted); }
 
-.curve-svg { display: block; touch-action: none; user-select: none; cursor: crosshair; }
+.curve-svg { display: block; touch-action: none; user-select: none; cursor: crosshair; flex: 1; }
 .curve-svg .grid { stroke: var(--line); stroke-width: 1; }
 /* The rest baseline: where `u: true` keyframes sit, since they carry no number of their own. */
-.curve-svg .rest { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .6; }
+.curve-svg .rest { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .5; }
 .curve-svg .axis { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-.curve-svg .playhead-line { stroke: var(--accent); stroke-width: 1.5; opacity: .8; }
-.curve-line { fill: none; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
-.curve-key {
-  fill: var(--panel); stroke: var(--c); stroke-width: 2; cursor: grab;
-}
+.curve-svg .playhead-line { stroke: var(--accent); stroke-width: 1.5; }
+.curve-line { fill: none; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.curve-key { fill: var(--panel); stroke: var(--c); stroke-width: 2; cursor: grab; }
 .curve-key:hover { fill: var(--c); }
 .curve-key.sel { fill: var(--c); stroke: var(--fg); }
 /* A rest keyframe has no authored value — hollow, so it does not read as a number someone chose. */
 .curve-key.rest { stroke-dasharray: 2 2; }
 .curve-key:active { cursor: grabbing; }
-.curve-empty { padding: .4rem 0; }
+.curve-empty { padding: .6rem; }
 
-/* ---- inspector ---- */
+/* ---- the keyframe ruler above the graph ---- */
 
-.inspector .insp-head {
-  display: flex; gap: .4rem; align-items: baseline; margin-bottom: .7rem;
-  padding-bottom: .5rem; border-bottom: 1px solid var(--line);
+/* The ruler grows with the lane count, but never past this: a clip with many lanes must not push
+   the curve editor off the pane. Past the cap it scrolls, and the lane rail scrolls with it. */
+.ruler-scroll {
+  overflow: hidden auto; max-height: 40%; flex: none;
+  border-bottom: 1px solid var(--line); background: var(--bg);
 }
-.inspector .insp-head .kp { color: var(--muted); font-size: .78rem; }
-.inspector .row { margin-top: .8rem; }
+.ruler-strip {
+  position: relative; cursor: pointer; user-select: none;
+}
+.ruler-strip .tick {
+  position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line);
+}
+.ruler-strip .tick span {
+  position: absolute; top: 2px; left: 3px; font-size: .62rem; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ruler-strip .kf {
+  position: absolute; top: 50%; width: 7px; height: 7px; padding: 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1px solid var(--muted); border-radius: 1px; background: var(--panel);
+  cursor: grab; touch-action: none;
+}
+.ruler-strip .kf.sel { background: var(--accent); border-color: var(--accent); }
+.ruler-strip .kf.ro { border-style: dashed; opacity: .7; }
+.ruler-strip .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+
+/* ---- narrow screens ---- */
+
+@media (max-width: 1100px) {
+  body { overflow: auto; }
+  .app { height: auto; grid-template-rows: auto; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .col { border-right: none; border-bottom: 1px solid var(--line); }
+  .bezel { height: auto; width: min(100%, 320px); }
+  .editor-bottom { grid-template-columns: minmax(0, 1fr); }
+  .lane-rail { border-right: none; border-bottom: 1px solid var(--line); max-height: 200px; }
+  .curve-svg { min-height: 240px; }
+}

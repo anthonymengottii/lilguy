@@ -19,6 +19,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The project timeout is 15 minutes, sized for the IoU harness that opens a reference page per
+// state. Nothing here takes more than a few seconds, so a stale selector would otherwise hang for
+// a quarter of an hour per test instead of failing — one bad run sat for 3.2 hours before this.
+test.describe.configure({ timeout: 30_000 });
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EDITOR = path.join(HERE, '..', 'editor');
 const URL = 'http://localhost:8795/';
@@ -50,7 +55,21 @@ async function snapshot(page) {
   });
 }
 
-const clipSelect = (page) => page.locator('.right select').first();
+// The clip list is a rail of buttons, not a <select>: the layout follows the original tool, where
+// states and animations are lists you scan rather than dropdowns you open.
+const pickClip = async (page, name) => {
+  // Anchored at the start and followed by end-or-tag: a clip that drives groups carries a "grupos"
+  // chip inside its button, so `^name$` would never match `rot3d_2`, while a bare prefix would
+  // match `blink2` when asked for `blink`.
+  await page.locator('.col .list button')
+    .filter({ hasText: new RegExp(`^${name}(\\s|$)`) })
+    .first()
+    .click();
+};
+const clipNames = (page) =>
+  page.locator('.section-head:has-text("Animações") ~ .section-body .list button').allTextContents();
+// Lane rows live on their own rail beside the keyframe ruler.
+const laneRows = (page) => page.locator('.lane-rail .lane-name');
 const scrubber = (page) => page.locator('.transport input[type="range"]');
 
 test('the editor loads and draws the eyes', async ({ page }) => {
@@ -67,7 +86,7 @@ test('the editor loads and draws the eyes', async ({ page }) => {
 test('playing a blink closes the eyes', async ({ page }) => {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(800);
-  await clipSelect(page).selectOption('blink');
+  await pickClip(page, 'blink');
   await page.waitForTimeout(300);
 
   await scrubber(page).fill('0');
@@ -88,7 +107,7 @@ test('playing a blink closes the eyes', async ({ page }) => {
 test('an edit reaches the canvas, and undo takes it back', async ({ page }) => {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(800);
-  await clipSelect(page).selectOption('blink');
+  await pickClip(page, 'blink');
   await page.waitForTimeout(300);
   await scrubber(page).fill('0');          // wide open: the pupils are fully visible
   await page.waitForTimeout(250);
@@ -97,13 +116,18 @@ test('an edit reaches the canvas, and undo takes it back', async ({ page }) => {
 
   // Find a pupil SCALE lane and blow it up. Scale at a wide-open moment changes the drawing in a
   // way nothing else could account for.
-  const rows = page.locator('.lane');
+  const rows = laneRows(page);
   const count = await rows.count();
   let edited = false;
   for (let i = 0; i < count; i++) {
-    const name = await rows.nth(i).locator('.lane-name').textContent();
+    const name = await rows.nth(i).textContent();
     if (!/escala/.test(name)) continue;
-    await rows.nth(i).locator('.key').first().click();
+    // Click the LANE to open it (which selects its first keyframe), then pick a keyframe from the
+    // graph. `.kf` is one flat list across every lane, so indexing it by lane number lands on
+    // whatever keyframe happens to be at that position — usually the wrong lane's.
+    await rows.nth(i).click();
+    await page.waitForTimeout(200);
+    await page.locator('.curve-key').nth(1).click();
     await page.waitForTimeout(150);
 
     const rest = page.locator('.inspector input[type="checkbox"]');
@@ -139,7 +163,7 @@ test('undo is unavailable until something is edited', async ({ page }) => {
 test('the curve graph draws the runtime\'s own easing', async ({ page }) => {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(800);
-  await clipSelect(page).selectOption('blink');
+  await pickClip(page, 'blink');
   await page.waitForTimeout(400);
 
   await expect(page.locator('.curve-svg')).toHaveCount(1);
@@ -149,13 +173,13 @@ test('the curve graph draws the runtime\'s own easing', async ({ page }) => {
   // ramp the graph would misrepresent every keyframe that uses it — and this project has already
   // paid for reading that curve the wrong way once. A step's path holds flat levels and jumps
   // between them, so its rendered y values collapse to a couple of distinct heights.
-  const rows = page.locator('.lane');
+  const rows = laneRows(page);
   const count = await rows.count();
   let opened = false;
   for (let i = 0; i < count; i++) {
-    const name = await rows.nth(i).locator('.lane-name').textContent();
+    const name = await rows.nth(i).textContent();
     if (!/opacidade/.test(name)) continue;
-    await rows.nth(i).locator('.lane-name').click();
+    await rows.nth(i).click();
     opened = true;
     break;
   }
@@ -171,16 +195,16 @@ test('the curve graph draws the runtime\'s own easing', async ({ page }) => {
 test('dragging a point on the graph edits the value', async ({ page }) => {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(800);
-  await clipSelect(page).selectOption('blink');
+  await pickClip(page, 'blink');
   await page.waitForTimeout(400);
 
   // Open a scale lane, whose values are continuous and safe to drag.
-  const rows = page.locator('.lane');
+  const rows = laneRows(page);
   let openedScale = false;
   for (let i = 0; i < await rows.count(); i++) {
-    const name = await rows.nth(i).locator('.lane-name').textContent();
+    const name = await rows.nth(i).textContent();
     if (!/escala/.test(name)) continue;
-    await rows.nth(i).locator('.lane-name').click();
+    await rows.nth(i).click();
     openedScale = true;
     break;
   }
@@ -223,28 +247,29 @@ test('the object tree offers the groups, not just the leaves', async ({ page }) 
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(800);
 
-  const picker = page.locator('.addlane select').first();
-  const options = (await picker.locator('option').allTextContents()).map((t) => t.trim());
+  // The tree is a rail of buttons now, indented by depth, the way the original tool lists objects.
+  const nodes = page.locator('.tree button');
+  const names = (await nodes.allTextContents()).map((t) => t.trim());
 
   for (const n of ['eyes', 'group_eye_l', 'group_eye_r', 'eye_l', 'pup_r']) {
-    expect(options.some((o) => o.startsWith(n)), `${n} should be offered`).toBe(true);
+    expect(names.includes(n), `${n} should be offered`).toBe(true);
   }
-  // The groups are marked, and the tree is indented by depth -- eyes at the top, its children
-  // under it.
-  const raw = await picker.locator('option').evaluateAll((els) => els.map((e) => e.textContent));
-  const eyesIdx = raw.findIndex((t) => t.trim().startsWith('eyes'));
-  const eyeLIdx = raw.findIndex((t) => t.trim().startsWith('eye_l'));
+
+  // Depth shows as indentation, and a group precedes everything it contains.
+  const eyesIdx = names.indexOf('eyes');
+  const eyeLIdx = names.indexOf('eye_l');
   expect(eyesIdx, '`eyes` should come before its descendants').toBeLessThan(eyeLIdx);
-  // The indent is written as plain spaces, but a browser hands back option text with them as
-  // NBSP (U+00A0) -- so test for leading whitespace of any kind rather than for ' ' exactly.
-  expect(/^[\s ]/.test(raw[eyeLIdx]), 'a leaf should be indented under its group').toBe(true);
-  expect(/^[\s ]/.test(raw[eyesIdx]), '`eyes` is the root and should not be indented').toBe(false);
+
+  const pads = await nodes.evaluateAll((els) =>
+    els.map((e) => parseFloat(getComputedStyle(e).paddingLeft)));
+  expect(pads[eyeLIdx], 'a leaf should be indented past its group')
+    .toBeGreaterThan(pads[eyesIdx]);
 });
 
 test('the clip list holds the shipped clips', async ({ page }) => {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(600);
-  const names = await clipSelect(page).locator('option').allTextContents();
+  const names = await clipNames(page);
   expect(names.length, 'the data ships 15 clips').toBe(15);
   // The ones the firmware's five live rules depend on must be there and selectable.
   for (const n of ['blink', 'blink2', 'blink3', 'idle', 'pup_mov_1', 'pup_scale']) {

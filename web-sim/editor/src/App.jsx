@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import Stage from './Stage';
-import Timeline from './Timeline';
+import LaneList from './LaneList';
+import KeyRuler from './KeyRuler';
 import Inspector from './Inspector';
 import CurveGraph from './CurveGraph';
 import { useEditorState } from './useEditorState';
@@ -14,6 +15,12 @@ import ANIM_DATA from '@data/anim_data.json';
 // retuned, lets new clips be built from those lanes, and exports anim_data.json in the shape
 // tools/lark_pack.py already reads. Nothing here writes to the device: the export is a file, and the
 // path to the hardware is the packer plus a reflash.
+//
+// LAID OUT LIKE THE TOOL THIS DATA CAME FROM: rails for states, clips and objects on the left, the
+// stage in the middle, properties on the right, and the keyframe ruler and curve editor across the
+// full width underneath. That is not imitation for its own sake — the graph is where authoring
+// happens, so it gets the width, and everything that only SELECTS what you are editing stays in
+// narrow rails around it.
 //
 // What it does NOT edit, deliberately: the `p` lanes, which carry the eyelid outlines as 24 Bezier
 // numbers per keyframe. Those are shown and retimable but their shape is fixed. Editing them
@@ -126,13 +133,15 @@ export default function App() {
     return lanes.find((l) => l.index === selection.laneIndex) || lanes[0] || null;
   }, [lanes, selection]);
 
-  // The graph is an SVG, so it needs a pixel width rather than a CSS one.
+  // The graph is an SVG, so it needs pixel dimensions rather than CSS ones.
   const graphHost = useRef(null);
-  const [graphWidth, setGraphWidth] = useState(640);
+  const [graphBox, setGraphBox] = useState({ w: 640, h: 240 });
   useEffect(() => {
     const el = graphHost.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(([entry]) => setGraphWidth(entry.contentRect.width));
+    const ro = new ResizeObserver(([entry]) => {
+      setGraphBox({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -157,7 +166,7 @@ export default function App() {
     a.download = 'anim_data.json';
     a.click();
     URL.revokeObjectURL(a.href);
-    setMessage('anim_data.json baixado. Para levar ao aparelho: python tools/lark_pack.py <arquivo>, depois reflash.');
+    setMessage('anim_data.json baixado — gere o binário com tools/lark_pack.py');
   }, [data]);
 
   const importJson = useCallback((file) => {
@@ -211,29 +220,132 @@ export default function App() {
   // ---- render ----------------------------------------------------------------------------------
 
   const groupOnly = clip && C.targetsGroups(clip);
+  const hasSelection = Boolean(selection && clip?.lanes?.[selection.laneIndex]);
+
+  const newClip = () => {
+    const name = window.prompt('Nome do clipe novo:', 'meu_clipe');
+    if (!name) return;
+    if (data.animations[name]) { setMessage(`já existe um clipe "${name}"`); return; }
+    apply((d) => C.createClip(d, name));
+    selectClip(name);
+  };
 
   return (
     <div className="app">
-      <header>
-        <h1>Editor de clipes Lark</h1>
-        <p className="sub">
-          Toca e edita as animações do <a href="https://hesjustalittleguy.com">hesjustalittleguy.com</a>{' '}
-          com o mesmo runtime que o ocellus usa. {editor.dirty && <b className="dirty">• alterado</b>}
-        </p>
+      <header className="titlebar">
+        <h1>Lark</h1>
+        <span className="spacer" />
+        <button type="button" onClick={editor.undo} disabled={!editor.canUndo}>desfazer</button>
+        <button type="button" onClick={editor.redo} disabled={!editor.canRedo}>refazer</button>
+        <label className="filebtn">
+          importar
+          <input
+            type="file"
+            accept="application/json"
+            onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])}
+          />
+        </label>
+        <button type="button" onClick={exportJson}>Export anim_data.json</button>
       </header>
 
-      <div className="columns">
-        <section className="left">
-          <Stage
-            data={data}
-            stateId={stateId}
-            clipName={clipName}
-            timeMs={timeMs}
-            background={background}
-            look={look}
-            onLook={setLook}
-          />
+      <div className="statusbar">
+        <span className="chip">web-sim</span>
+        <span>{clipNames.length} animações</span>
+        <span>{stateIds.length} estados</span>
+        <span className={editor.dirty ? 'dirty' : 'ok'}>
+          {editor.dirty ? '● alterado' : '✓ sem alterações'}
+        </span>
+        <span className="spacer" />
+        {message && <span>{message}</span>}
+        <span className="nowrap">espaço toca · ←→ 10ms · ctrl+Z desfaz</span>
+      </div>
 
+      <div className="workspace">
+        {/* What you are looking at, and what is playing on it. */}
+        <div className="col">
+          <div className="section">
+            <div className="section-head">
+              <span>Estados</span>
+              <span className="spacer" />
+              <span>{stateIds.length}</span>
+            </div>
+            <div className="section-body" style={{ maxHeight: '10rem' }}>
+              <div className="list">
+                {stateIds.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={s === stateId ? 'sel' : ''}
+                    onClick={() => setStateId(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="section grow">
+            <div className="section-head">
+              <span>Animações</span>
+              <span className="spacer" />
+              <button type="button" className="icon" title="novo clipe" onClick={newClip}>+</button>
+            </div>
+            <div className="section-body">
+              <div className="list">
+                {clipNames.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={n === clipName ? 'sel' : ''}
+                    onClick={() => selectClip(n)}
+                  >
+                    {n}
+                    {C.targetsGroups(data.animations[n]) && <span className="tag">grupos</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* The object tree. Groups are listed because a lane on one moves everything inside it. */}
+        <div className="col">
+          <div className="section grow">
+            <div className="section-head"><span>Objetos</span></div>
+            <div className="section-body">
+              <div className="tree">
+                {nodeTree.map(({ name, depth, isGroup }) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={name === newObj ? 'sel' : ''}
+                    style={{ paddingLeft: `${0.35 + depth * 0.7}rem` }}
+                    onClick={() => setNewObj(name)}
+                    title={isGroup ? 'grupo — uma lane aqui move tudo que ele contém' : name}
+                  >
+                    <i className={dotClass(name)} />
+                    <span className={isGroup ? 'grp' : undefined}>{name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* The stage. */}
+        <div className="col stage-col">
+          <div className="stage-wrap">
+            <Stage
+              data={data}
+              stateId={stateId}
+              clipName={clipName}
+              timeMs={timeMs}
+              background={background}
+              look={look}
+              onLook={setLook}
+            />
+          </div>
           <div className="transport">
             <button type="button" className="play" onClick={() => setPlaying((p) => !p)}>
               {playing ? '⏸' : '▶'}
@@ -246,73 +358,47 @@ export default function App() {
               value={Math.round(timeMs)}
               onChange={(e) => scrub(Number(e.target.value))}
             />
-            <span className="time">{(timeMs / 1000).toFixed(2)}s / {(duration / 1000).toFixed(2)}s</span>
+            <span className="time">
+              {(timeMs / 1000).toFixed(2)}s / {(duration / 1000).toFixed(2)}s
+            </span>
+            <input
+              type="color"
+              value={background}
+              title="cor de fundo"
+              onChange={(e) => setBackground(e.target.value)}
+            />
           </div>
+        </div>
 
-          <div className="row wrap">
-            <label className="field inline">
-              <span>estado</span>
-              <select value={stateId} onChange={(e) => setStateId(e.target.value)}>
-                {stateIds.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
-            <label className="field inline">
-              <span>fundo</span>
-              <input type="color" value={background} onChange={(e) => setBackground(e.target.value)} />
-            </label>
-          </div>
-
-          <p className="hint small">
-            Espaço toca/pausa · setas ↔ movem 10ms (100ms com Shift) · Ctrl+Z desfaz.
-            Mova o cursor sobre o disco para guiar o olhar.
-          </p>
-        </section>
-
-        <section className="right">
-          <div className="panel">
-            <div className="row wrap">
-              <label className="field inline grow">
-                <span>clipe</span>
-                <select value={clipName} onChange={(e) => selectClip(e.target.value)}>
-                  {clipNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}{C.targetsGroups(data.animations[n]) ? ' (grupos)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="button" onClick={() => {
-                const name = window.prompt('Nome do clipe novo:', 'meu_clipe');
-                if (!name) return;
-                if (data.animations[name]) { setMessage(`já existe um clipe "${name}"`); return; }
-                apply((d) => C.createClip(d, name));
-                selectClip(name);
-              }}>novo</button>
-              <button type="button" onClick={() => {
-                const to = window.prompt('Novo nome:', clipName);
-                if (!to || to === clipName) return;
-                if (data.animations[to]) { setMessage(`já existe um clipe "${to}"`); return; }
-                apply((d) => C.renameClip(d, clipName, to));
-                selectClip(to);
-              }}>renomear</button>
-              <button type="button" className="danger" onClick={() => {
-                if (!window.confirm(`Remover o clipe "${clipName}"? Isso não vai para o disco até você exportar.`)) return;
-                apply((d) => C.deleteClip(d, clipName));
-                const rest = clipNames.filter((n) => n !== clipName);
-                selectClip(rest[0] || '');
-              }}>remover</button>
+        {/* Properties: the state, the clip, and the selected keyframe. */}
+        <div className="col">
+          <div className="props">
+            <div className="group">
+              <div className="group-title">Estado</div>
+              <div className="prop"><span>nome</span><span>{stateId}</span></div>
+              <div className="prop"><span>objetos</span><span>{nodeTree.length}</span></div>
             </div>
 
-            {groupOnly && (
-              <p className="warn">
-                Este clipe dirige <b>grupos</b> da cena (<code>eyes</code>, <code>group_eye_*</code>),
-                então cada lane move vários nós de uma vez: <code>eyes</code> gira o par junto,
-                <code> group_eye_*</code> gira cada olho no próprio eixo.
-              </p>
-            )}
-
-            <div className="row wrap">
-              <label className="field inline">
+            <div className="group">
+              <div className="group-title">Animação</div>
+              <div className="prop">
+                <span>nome</span>
+                <button
+                  type="button"
+                  className="icon"
+                  title="renomear"
+                  onClick={() => {
+                    const to = window.prompt('Novo nome:', clipName);
+                    if (!to || to === clipName) return;
+                    if (data.animations[to]) { setMessage(`já existe um clipe "${to}"`); return; }
+                    apply((d) => C.renameClip(d, clipName, to));
+                    selectClip(to);
+                  }}
+                >
+                  {clipName}
+                </button>
+              </div>
+              <div className="prop">
                 <span>duração (ms)</span>
                 <input
                   type="number"
@@ -323,19 +409,107 @@ export default function App() {
                     'duration',
                   )}
                 />
-              </label>
-              <label className="field inline check">
+              </div>
+              <div className="prop">
+                <span>em laço</span>
                 <input
                   type="checkbox"
                   checked={clip?.repeat === 'l'}
                   onChange={(e) => apply((d) => C.setRepeat(d, clipName, e.target.checked))}
                 />
-                <span>em laço</span>
-              </label>
+              </div>
+              <div className="prop"><span>lanes</span><span>{lanes.length}</span></div>
+              <div className="row" style={{ marginTop: '.45rem' }}>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    if (!window.confirm(`Remover o clipe "${clipName}"? Só vale ao exportar.`)) return;
+                    apply((d) => C.deleteClip(d, clipName));
+                    const rest = clipNames.filter((n) => n !== clipName);
+                    selectClip(rest[0] || '');
+                  }}
+                >
+                  remover
+                </button>
+                <button type="button" className="danger" onClick={revert}>original</button>
+              </div>
+            </div>
+
+            {groupOnly && (
+              <p className="warn">
+                Dirige <b>grupos</b>: <code>eyes</code> gira o par junto,{' '}
+                <code>group_eye_*</code> gira cada olho no próprio eixo.
+              </p>
+            )}
+
+            <div className="group">
+              <div className="group-title">Keyframe</div>
+              {hasSelection
+                ? <Inspector clip={clip} selection={selection} ops={ops} />
+                : <p className="hint small">Clique num keyframe na régua ou no gráfico.</p>}
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="panel" ref={graphHost}>
+      {/* The bottom half: lanes on their rail, the ruler and curve editor across the rest. */}
+      <div className="editor-bottom">
+        <div className="lane-rail">
+          <div className="section-head"><span>Lanes</span></div>
+          <div className="lane-scroll">
+            <LaneList
+              clip={clip}
+              clipName={clipName}
+              selection={selection}
+              onSelect={setSelection}
+            />
+          </div>
+          <div className="addlane">
+            <select value={newKp} onChange={(e) => setNewKp(e.target.value)}>
+              <option value="t">translação</option>
+              <option value="s">escala</option>
+              <option value="o">opacidade</option>
+              <option value="r">rotação</option>
+              <option value="t3d">perspectiva</option>
+              <option value="l">olhar (raiz)</option>
+            </select>
+            <button
+              type="button"
+              title={newKp === 'l' ? 'adicionar na raiz' : `adicionar em ${newObj || '(raiz)'}`}
+              onClick={() => apply((d) => C.addLane(d, clipName, newKp === 'l' ? '' : newObj, newKp))}
+            >
+              + lane
+            </button>
+            <button
+              type="button"
+              disabled={!hasSelection}
+              title="inserir keyframe no tempo atual"
+              onClick={() => selection && apply((d) => C.addKey(d, clipName, selection.laneIndex, timeMs))}
+            >
+              + key
+            </button>
+          </div>
+        </div>
+
+        <div className="graph-pane">
+          {/* The same header height as the lane rail's, so row 1 of the names sits opposite row 1
+              of the keyframes. Without it the two columns start 25px apart and every row is off. */}
+          <div className="section-head">
+            <span>{clipName}</span>
+            <span className="spacer" />
+            <span>{(duration / 1000).toFixed(2)}s · {lanes.length} lanes</span>
+          </div>
+          <KeyRuler
+            clip={clip}
+            lanes={lanes}
+            selection={selection}
+            onSelect={setSelection}
+            onMoveKey={moveKey}
+            onScrub={scrub}
+            timeMs={timeMs}
+          />
+          <div className="graph-host" ref={graphHost}>
             <CurveGraph
               clip={clip}
               lane={activeLane}
@@ -346,78 +520,20 @@ export default function App() {
               onSetComponent={setComponentAt}
               onScrub={scrub}
               timeMs={timeMs}
-              width={graphWidth - 32}
+              width={graphBox.w}
+              height={graphBox.h}
             />
           </div>
-
-          <div className="panel">
-            <Timeline
-              clip={clip}
-              clipName={clipName}
-              selection={selection}
-              onSelect={setSelection}
-              onMoveKey={moveKey}
-              onScrub={scrub}
-              timeMs={timeMs}
-            />
-
-            <div className="row wrap addlane">
-              <span className="label">nova lane</span>
-              <select value={newObj} onChange={(e) => setNewObj(e.target.value)}>
-                <option value="">(raiz — olhar)</option>
-                {nodeTree.map(({ name, depth, isGroup }) => (
-                  <option key={name} value={name}>
-                    {'  '.repeat(depth)}{name}{isGroup ? ' ▸' : ''}
-                  </option>
-                ))}
-              </select>
-              <select value={newKp} onChange={(e) => setNewKp(e.target.value)}>
-                <option value="t">translação</option>
-                <option value="s">escala</option>
-                <option value="o">opacidade</option>
-                <option value="r">rotação</option>
-                <option value="t3d">perspectiva</option>
-                {newObj === '' && <option value="l">olhar</option>}
-              </select>
-              <button type="button" onClick={() => apply((d) => C.addLane(d, clipName, newObj, newKp))}>
-                adicionar
-              </button>
-              <button type="button" disabled={!selection} onClick={() => {
-                if (!selection) return;
-                apply((d) => C.addKey(d, clipName, selection.laneIndex, timeMs));
-              }}>
-                keyframe aqui
-              </button>
-            </div>
-          </div>
-
-          <div className="panel">
-            <Inspector clip={clip} selection={selection} ops={ops} />
-          </div>
-
-          <div className="panel">
-            <div className="row wrap">
-              <button type="button" onClick={editor.undo} disabled={!editor.canUndo}>desfazer</button>
-              <button type="button" onClick={editor.redo} disabled={!editor.canRedo}>refazer</button>
-              <button type="button" onClick={exportJson}>exportar JSON</button>
-              <label className="filebtn">
-                importar
-                <input
-                  type="file"
-                  accept="application/json"
-                  onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])}
-                />
-              </label>
-              <button type="button" className="danger" onClick={revert}>voltar ao original</button>
-            </div>
-            {message && <p className="hint small">{message}</p>}
-            <p className="hint small">
-              O export tem a forma do <code>anim_data.json</code> do site, então
-              <code> tools/lark_pack.py</code> lê sem conversão. Nada aqui grava no aparelho.
-            </p>
-          </div>
-        </section>
+        </div>
       </div>
     </div>
   );
+}
+
+// A colour dot per node kind, so the tree reads at a glance the way the original's does.
+function dotClass(name) {
+  if (/^eye_/.test(name)) return 'dot eye';
+  if (/^pup_/.test(name)) return 'dot pup';
+  if (/^h[12]_/.test(name)) return 'dot hi';
+  return 'dot';
 }
