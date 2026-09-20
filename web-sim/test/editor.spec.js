@@ -99,7 +99,13 @@ test('the stage maps the authoring space onto the disc', async ({ page }) => {
   const geom = await page.evaluate(() => {
     const c = document.querySelector('canvas');
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    const lit = (x, y) => { const i = (y * c.width + x) * 4; return d[i] > 24 || d[i + 1] > 24 || d[i + 2] > 24; };
+    // The selection marker is drawn in white, and a group's box would bridge the two eyes into one
+    // blob. Ink here means the drawing, so white is excluded.
+    const lit = (x, y) => {
+      const i = (y * c.width + x) * 4;
+      if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) return false;
+      return d[i] > 24 || d[i + 1] > 24 || d[i + 2] > 24;
+    };
 
     // Column scan, not a split down the middle: halving the canvas clips a deflected eye, and
     // measuring that way once sent a whole turn model the wrong way round.
@@ -540,4 +546,124 @@ test('play restarts a one-shot clip that has run to the end', async ({ page }) =
   const mid = parseFloat((await time()).trim());
   expect(mid, 'play should rewind and run, not sit at the end').toBeGreaterThan(0);
   expect(mid, 'and still be partway through').toBeLessThan(0.78);
+});
+
+test('selecting a group boxes what it contains', async ({ page }) => {
+  // Groups have no path of their own — `p` is [] on all three — so they get a bounding box drawn
+  // around their descendants instead. The box comes from the ID PASS rather than from the group's
+  // stored `b` or its children's raw paths: those describe the rest pose, while drawNode applies
+  // the look, the turn and the running clip on the way to the screen, so a box from the data would
+  // sit still while the eyes move.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  // Where the eyes actually are, with a leaf selected so no box is in the way.
+  await page.locator('.tree button', { hasText: /^\s*eye_l\s*$/ }).first().click();
+  await page.waitForTimeout(400);
+  const eyes = await page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(0, 0, 240, 240).data;
+    const cols = [];
+    for (let x = 0; x < 240; x++) {
+      let on = false;
+      for (let y = 0; y < 240; y++) {
+        const i = (y * 240 + x) * 4;
+        if (d[i] > 24 || d[i + 1] > 24 || d[i + 2] > 24) { on = true; break; }
+      }
+      cols.push(on);
+    }
+    const blobs = [];
+    let s = -1;
+    for (let x = 0; x <= 240; x++) {
+      const on = x < 240 && cols[x];
+      if (on && s < 0) s = x;
+      if (!on && s >= 0) { if (x - s >= 6) blobs.push([s, x - 1]); s = -1; }
+    }
+    return blobs;
+  });
+  expect(eyes.length, 'two eyes to bound').toBe(2);
+
+  const whiteBox = () => page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(0, 0, 240, 240).data;
+    let x0 = 240, x1 = -1;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) {
+        const x = (i / 4) % 240;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+      }
+    }
+    return x1 < 0 ? null : { x0, x1 };
+  });
+
+  await page.locator('.tree button', { hasText: /^\s*group_eye_l\s*$/ }).first().click();
+  await page.waitForTimeout(600);
+  const left = await whiteBox();
+  expect(left, 'a group selection should draw a box').not.toBeNull();
+  // It bounds the LEFT eye only. The first version packed node ids into one channel at 16, 32, 48,
+  // 64 — and antialiasing between 32 and 64 averages to exactly 48, another node's id. Those few
+  // blended pixels stretched the left group's box across the whole pair. Ids now differ in all
+  // three channels so no blend can impersonate one.
+  expect(left.x0).toBeLessThanOrEqual(eyes[0][0]);
+  expect(left.x1, 'the left group must not reach the right eye').toBeLessThan(eyes[1][0]);
+
+  await page.locator('.tree button', { hasText: /^\s*group_eye_r\s*$/ }).first().click();
+  await page.waitForTimeout(600);
+  const right = await whiteBox();
+  expect(right.x0, 'and the right group must not reach the left eye').toBeGreaterThan(eyes[0][1]);
+
+  // `eyes` contains both groups, so its box spans the pair.
+  await page.locator('.tree button', { hasText: /^\s*eyes\s*$/ }).first().click();
+  await page.waitForTimeout(600);
+  const both = await whiteBox();
+  expect(both.x0).toBeLessThanOrEqual(eyes[0][0]);
+  expect(both.x1).toBeGreaterThanOrEqual(eyes[1][1]);
+});
+
+test('a group shows no colour controls', async ({ page }) => {
+  // A group paints nothing, so a swatch on it would be a control that does nothing.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  await page.locator('.tree button', { hasText: /^\s*pup_l\s*$/ }).first().click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.colour-panel input[type="color"]'), 'a leaf has a swatch')
+    .toHaveCount(1);
+
+  await page.locator('.tree button', { hasText: /^\s*group_eye_l\s*$/ }).first().click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.colour-panel input[type="color"]'), 'a group does not')
+    .toHaveCount(0);
+  await expect(page.locator('.colour-panel')).toContainText('grupo');
+});
+
+test('alt-clicking the stage climbs to the containing group', async ({ page }) => {
+  // Groups draw nothing, so the id pass can never return one — alt is the only way to reach
+  // `eyes` or `group_eye_*` from the stage.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+
+  const box = await page.locator('canvas').boundingBox();
+  const pt = {
+    x: box.x + (73 / 240) * box.width,
+    y: box.y + (120 / 240) * box.height,
+  };
+  const selected = () => page.locator('.colour-panel .prop b').textContent();
+
+  await page.mouse.click(pt.x, pt.y);
+  await page.waitForTimeout(350);
+  expect(await selected(), 'a plain click picks the leaf').toBe('pup_l');
+
+  const altClick = async () => {
+    await page.keyboard.down('Alt');
+    await page.mouse.click(pt.x, pt.y);
+    await page.keyboard.up('Alt');
+    await page.waitForTimeout(350);
+  };
+
+  await altClick();
+  expect(await selected(), 'alt climbs to the direct parent').toBe('group_eye_l');
+  await altClick();
+  expect(await selected(), 'and again to the root group').toBe('eyes');
 });

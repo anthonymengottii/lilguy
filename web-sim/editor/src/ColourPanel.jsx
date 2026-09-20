@@ -19,9 +19,35 @@ import { HOLE, isHole } from './clipOps';
 // to 0x0000 in RGB565, so on the device a "nearly black" fill is bit-identical to the hole. Rather
 // than ship a trick that works in the browser and fails on the panel, the panel says so.
 
-export default function ColourPanel({ node, colour, onChange, onHole }) {
+export default function ColourPanel({ node, colour, onChange, onHole, isGroup, contains }) {
   if (!node) {
     return <p className="hint small">Clique num objeto na lista ou no palco.</p>;
+  }
+
+  // A group paints nothing — it is a handle for moving several nodes at once, which is how `rot`
+  // turns the pair and `rot3d_2` turns one eye about its own anchor. Offering it a colour swatch
+  // would be a control that does nothing.
+  if (isGroup) {
+    return (
+      <div className="colour-panel">
+        <div className="prop">
+          <span>objeto</span>
+          <b>{node}</b>
+        </div>
+        <div className="prop">
+          <span>tipo</span>
+          <span>grupo</span>
+        </div>
+        <div className="prop">
+          <span>contém</span>
+          <span>{contains?.length ?? 0}</span>
+        </div>
+        <p className="hint small">
+          Grupos não têm cor nem contorno próprios. Uma lane aqui move tudo que ele contém —
+          é assim que <code>rot</code> gira o par e <code>rot3d_2</code> gira cada olho.
+        </p>
+      </div>
+    );
   }
 
   const hole = isHole(colour);

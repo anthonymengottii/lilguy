@@ -168,7 +168,14 @@ export default function App() {
   // disagree.
   const [newObj, setNewObj] = useState('');
   const [newKp, setNewKp] = useState('t');
-  useEffect(() => { if (!newObj && nodeNames.length) setNewObj(nodeNames[0]); }, [nodeNames, newObj]);
+  // Open on a LEAF, not on `eyes`. The tree lists the root group first, and selecting a group draws
+  // a box around everything it contains — so defaulting to the first name framed the whole pair the
+  // moment the editor loaded, which reads as chrome rather than as a selection.
+  useEffect(() => {
+    if (newObj || !nodeTree.length) return;
+    const leaf = nodeTree.find((n) => !n.isGroup);
+    setNewObj((leaf || nodeTree[0]).name);
+  }, [nodeTree, newObj]);
 
   // Colour lives on the node inside the state, so the edit travels with the exported JSON.
   const selectedNode = data.states?.[stateId]?.objs?.[newObj];
@@ -429,6 +436,8 @@ export default function App() {
                 colour={selectedColour}
                 onChange={setColour}
                 onHole={() => setColour(C.HOLE)}
+                isGroup={selectedNode?.type === 'group'}
+                contains={selectedNode?.ch}
               />
             </div>
 
