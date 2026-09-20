@@ -8,7 +8,7 @@ import CurveGraph from './CurveGraph';
 import ColourPanel from './ColourPanel';
 import { useEditorState } from './useEditorState';
 import * as C from './clipOps';
-import ANIM_DATA from '@data/anim_data.json';
+import ANIM_DATA from './animData';
 
 // The Lark clip editor.
 //

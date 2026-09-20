@@ -667,3 +667,37 @@ test('alt-clicking the stage climbs to the containing group', async ({ page }) =
   await altClick();
   expect(await selected(), 'and again to the root group').toBe('eyes');
 });
+
+test('the editor imports nothing from outside the repository', () => {
+  // A Vercel build failed with `Could not load /vercel/lilguy-fork/public/anim_data.json`: the app
+  // aliased its scene data to a sibling directory that is checked in nowhere. It built on one
+  // machine and could not build anywhere else — and no browser test could catch that, because the
+  // dev server happily served the file that was there.
+  //
+  // So this is a source check rather than a behaviour one: nothing under editor/src may reach above
+  // web-sim, and the Vite config may not alias a path outside it.
+  const SRC = path.join(EDITOR, 'src');
+  const offenders = [];
+
+  for (const file of fs.readdirSync(SRC)) {
+    if (!/\.(jsx?|css)$/.test(file)) continue;
+    const text = fs.readFileSync(path.join(SRC, file), 'utf8');
+    for (const m of text.matchAll(/from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]/g)) {
+      const spec = m[1] || m[2];
+      if (!spec.startsWith('.')) continue;                 // a package, or an alias
+      // `src/x` -> `..` is web-sim's own root, which is fine; `../..` leaves it.
+      const resolved = path.resolve(SRC, spec.split('?')[0]);
+      const rel = path.relative(path.join(EDITOR, '..'), resolved);
+      if (rel.startsWith('..')) offenders.push(`${file}: ${spec}`);
+    }
+  }
+  expect(offenders, 'these imports point outside web-sim').toEqual([]);
+
+  // Strip comments before checking the config: the file EXPLAINS this rule, naming `lilguy-fork`
+  // and `../../..` as the thing not to do, and a plain text search flags its own documentation.
+  const config = fs.readFileSync(path.join(EDITOR, 'vite.config.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  expect(config, 'the config must not alias anything outside the repo').not.toMatch(/lilguy-fork/);
+  expect(config, 'nor reach up past web-sim').not.toMatch(/\.\.\/\.\.\/\.\./);
+});

@@ -152,14 +152,22 @@ Nada no editor escreve no hardware: o caminho é arquivo → packer → reflash.
 
 O `web-sim` não tem **nenhuma** dependência de runtime, e isso vale manter, porque ele é o
 instrumento contra o qual o firmware é medido. Um editor que quebre não pode quebrar o instrumento.
-Ele alcança para fora só em dois lugares, ambos leitura: `../lark.js` e o `anim_data.json` do
-`lilguy-fork`.
+Ele alcança para fora só em dois arquivos, ambos leitura e **ambos dentro do repositório**:
+`../lark.js` e `../anim_data.js`.
+
+Esse "dentro do repositório" é literal e custou um deploy: o editor lia o `anim_data.json` do
+`lilguy-fork`, que é a fonte que o `tools/lark_pack.py` usa e **não está versionada em lugar
+nenhum**. Isso compila numa máquina com o fork ao lado e em nenhuma outra — um build na Vercel
+morreu com `Could not load /vercel/lilguy-fork/public/anim_data.json`, e um clone novo faria o
+mesmo. A cópia versionada (`anim_data.js`, a que a página publicada já usa) tem os 36 estados e os
+15 clipes **idênticos**; o JSON original só carrega três campos de metadado a mais, que ninguém lê.
+Um teste em `editor.spec.js` falha se algum import voltar a apontar para fora.
 
 E **importa o `lark.js` daqui**, não uma cópia. Um clipe que toca certo no editor toca certo na
 página do artifact e, pelo port em C++, no aparelho — um visualizador escrito "parecido com" o
 runtime divergiria dele na primeira mudança, e a divergência seria invisível.
 
-Coberto por `test/editor.spec.js` (17 casos), cujo teste central não é "renderiza" e sim **"uma
+Coberto por `test/editor.spec.js` (18 casos), cujo teste central não é "renderiza" e sim **"uma
 edição chega ao canvas"** — a falha que um screenshot não pega é um editor que responde e não muda
 nada. Rode com `npx playwright test test/editor.spec.js`.
 
@@ -179,6 +187,7 @@ nada. Rode com `npx playwright test test/editor.spec.js`.
 | `editor/src/KeyRuler.jsx` | régua de keyframes, alinhada linha a linha com `LaneList` |
 | `editor/src/clipOps.js` | toda edição como função pura sobre o documento — é o que torna o undo uma pilha de valores |
 | `editor/src/useEditorState.js` | documento + histórico, com coalescência de arrastes |
+| `editor/src/animData.js` | lê o `anim_data.js` versionado — a fonte não pode estar fora do repo |
 | `screenshots/` | prints usados neste README |
 | `index.html` + `main.js` | página do motor medido |
 | `artifact.html` | versão publicada do motor medido, tudo num arquivo |
@@ -408,7 +417,7 @@ npm run serve:sim &   # 8794
 npm run baseline      # regrava tools/baseline/states.json
 npm test              # gate de regressão
 
-npx playwright test test/editor.spec.js   # só o editor (17 casos, ~30s)
+npx playwright test test/editor.spec.js   # só o editor (18 casos, ~40s)
 ```
 
 Os harnesses ficam em `tools/harness/` e as primitivas de medição em `tools/lib/measure.js`, que é o
