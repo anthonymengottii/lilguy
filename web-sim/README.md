@@ -60,43 +60,108 @@ Uma diferença conhecida entre o que roda aqui e o que roda lá:
 
 ## O editor de clipes
 
-`editor/` é uma aplicação React+Vite separada para **tocar e editar as animações**: escolhe um dos
-15 clipes, toca, arrasta o playhead, arrasta keyframes na timeline, edita valores e curvas, cria
-clipes novos, desfaz e refaz.
+`editor/` é uma aplicação React+Vite separada para **tocar e editar as animações** do Lark, com o
+mesmo runtime que o ocellus usa.
 
-**O editor de curvas** é o centro: valor contra tempo, uma linha por componente, keyframes
-arrastáveis nos dois eixos ao mesmo tempo (shift prende no tempo). Ele desenha amostrando as
-`CURVES` do próprio `lark.js`, não uma aproximação — a linha desenhada é a linha tocada. Isso
-importa porque é onde as sutilezas deste dado moram: a curva de um segmento é a do keyframe de onde
-ele *sai*, e a curva 0 é um **degrau** que segura a origem, não uma rampa. Uma lista de números
-esconde as duas coisas; um gráfico não.
+![O editor](screenshots/editor.png)
 
 ```sh
 npm --prefix editor install     # uma vez
 npm --prefix editor run dev     # http://localhost:8795
 ```
 
-Ele **importa o `lark.js` daqui**, não uma cópia. Um clipe que toca certo no editor toca certo na
+Ou, a partir desta pasta, `npm run editor:install` e `npm run editor`.
+
+### O que dá para fazer
+
+| ação | como |
+|---|---|
+| trocar de estado / clipe | listas à esquerda |
+| tocar, pausar | botão ▶ ou **espaço** |
+| percorrer o tempo | arrastar o playhead, clicar na régua, ou **←/→** (10ms; 100ms com shift) |
+| selecionar um objeto | clicar nele no palco ou na árvore |
+| selecionar o **grupo** | clicar na árvore, ou **alt+clique** no palco (sobe um nível por vez) |
+| mover um objeto | arrastar no palco — edita a geometria do estado |
+| trocar a cor | seletor no painel direito |
+| abrir uma lane no gráfico | clicar no nome dela, à esquerda da régua |
+| mover um keyframe | arrastar na régua (tempo) ou no gráfico (tempo **e** valor; shift prende o tempo) |
+| desfazer / refazer | **ctrl+Z** / **ctrl+shift+Z** — um arraste inteiro é um passo só |
+| guiar o olhar | mover o cursor sobre o disco |
+
+### O editor de curvas
+
+É o centro da ferramenta: valor contra tempo, uma linha por componente, keyframes arrastáveis nos
+dois eixos ao mesmo tempo.
+
+![A curva de opacidade, um degrau](screenshots/curve.png)
+
+Ele desenha **amostrando as `CURVES` do próprio `lark.js`**, não uma aproximação — a linha desenhada
+é a linha tocada. Isso importa porque é onde as sutilezas deste dado moram, e o print acima mostra
+uma delas: a lane `o` da pupila usa a **curva 0**, que é um *degrau* segurando o valor de origem, não
+uma rampa. A outra é que a curva de um segmento é a do keyframe de onde ele **sai**, não a do
+keyframe aonde chega. Uma lista de números esconde as duas; um gráfico não.
+
+### Seleção
+
+![Um grupo selecionado](screenshots/select.png)
+
+Clicar no palco identifica o objeto por um **passe de identificação**: a cena é redesenhada fora da
+tela com uma cor chapada por nó, e o pixel sob o cursor diz qual é. Exato por construção — usa o
+caminho de desenho real, então acerta o que está de fato visível, recortado e na ordem certa. Ler o
+canvas visível seria mais simples e errado: as duas pupilas do `1b` têm a mesma cor, buraco não tem
+cor própria, e bordas suavizadas misturam dois nós num terceiro valor.
+
+Grupos (`eyes`, `group_eye_*`) não desenham nada, então o passe nunca devolve um — daí o alt+clique.
+Selecionado, um grupo ganha uma caixa em volta do que contém, calculada do mesmo passe: a caixa
+guardada no dado (`b`) descreve o repouso, e ficaria parada enquanto os olhos se mexem.
+
+### Cor, e o que é um buraco
+
+A cor é gravada em `objs[<nó>].c` **dentro do estado**, não como override do runtime. O
+`LarkRuntime.setColour` existe e é o que a página publicada usa, mas não faz parte do
+`anim_data.json`: ficaria certo na tela e sumiria no export.
+
+`000000` é **buraco**, não preto — em 20 dos 36 estados a pupila é recortada do olho em vez de
+pintada. Por isso o seletor e o buraco são controles separados: o seletor sempre pinta, a caixinha
+perfura. O que ele não oferece é pupila preta pura: o formato tem um único valor para buraco e é
+preto, e nenhum quase-preto sobrevive — `010101` e `020202` viram `0x0000` em RGB565, idênticos ao
+buraco no painel.
+
+### Limites e por quê
+
+**Não edita as lanes `p`**, que carregam os contornos de pálpebra como 24 números de Bézier por
+keyframe. Aparecem na régua e podem ser movidas no *tempo* — retimar uma piscada é edição de verdade
+—, mas a forma é fixa. Editá-la bem exige um editor vetorial; editá-la mal (escalar o contorno
+inteiro, por exemplo) produziria formas que a autoria original nunca fez, indistinguíveis do dado
+real depois de exportadas.
+
+### Como o trabalho sai daqui
+
+**Export anim_data.json** baixa um arquivo com a mesma forma do que o site distribui, que o
+`tools/lark_pack.py` lê sem conversão:
+
+```sh
+cd ..                                                  # a raiz do repo, não esta pasta
+python tools/lark_pack.py ~/Downloads/anim_data.json   # -> lark_data.bin + lark_data_blob.h
+python -m platformio run -e esp32-s3-touch-128 -t upload
+```
+
+Nada no editor escreve no hardware: o caminho é arquivo → packer → reflash.
+
+### Por que em pasta própria
+
+O `web-sim` não tem **nenhuma** dependência de runtime, e isso vale manter, porque ele é o
+instrumento contra o qual o firmware é medido. Um editor que quebre não pode quebrar o instrumento.
+Ele alcança para fora só em dois lugares, ambos leitura: `../lark.js` e o `anim_data.json` do
+`lilguy-fork`.
+
+E **importa o `lark.js` daqui**, não uma cópia. Um clipe que toca certo no editor toca certo na
 página do artifact e, pelo port em C++, no aparelho — um visualizador escrito "parecido com" o
 runtime divergiria dele na primeira mudança, e a divergência seria invisível.
 
-Por que em pasta própria, com `package.json` próprio: o `web-sim` não tem **nenhuma** dependência de
-runtime, e isso vale manter, porque ele é o instrumento contra o qual o firmware é medido. Um editor
-que quebre não pode quebrar o instrumento. Ele alcança para fora só em dois lugares, ambos leitura:
-`../lark.js` e o `anim_data.json` do `lilguy-fork`.
-
-**O que ele não edita:** as lanes `p`, que carregam os contornos de pálpebra como 24 números de
-Bézier por keyframe. Elas aparecem na timeline e podem ser movidas no *tempo* — retimar uma piscada
-é uma edição de verdade —, mas a forma é fixa. Editá-la bem exige um editor de curvas; editá-la mal
-(escalar o contorno inteiro, por exemplo) produziria formas que a autoria original nunca fez, e
-depois de exportadas seriam indistinguíveis do dado real.
-
-**Como o trabalho sai daqui:** `exportar JSON` baixa um `anim_data.json` com a mesma forma do
-arquivo do site, que o `tools/lark_pack.py` lê sem conversão. Para chegar no aparelho: gerar o
-binário e regravar o firmware. Nada no editor escreve no hardware.
-
-Coberto por `test/editor.spec.js`, cujo teste central não é "renderiza" e sim **"uma edição chega ao
-canvas"** — a falha que um screenshot não pega é um editor que responde e não muda nada.
+Coberto por `test/editor.spec.js` (17 casos), cujo teste central não é "renderiza" e sim **"uma
+edição chega ao canvas"** — a falha que um screenshot não pega é um editor que responde e não muda
+nada. Rode com `npx playwright test test/editor.spec.js`.
 
 ## Arquivos
 
@@ -109,6 +174,12 @@ canvas"** — a falha que um screenshot não pega é um editor que responde e n�
 | `behavior_data.js` | `behavior_data.json` do site, como `const BEHAVIOR_DATA` — 23 regras |
 | `lilguy.js` | motor medido, um estado |
 | `editor/` | editor de clipes (React+Vite, dependências próprias) — importa o `lark.js` daqui |
+| `editor/src/Stage.jsx` | o palco: desenho, passe de identificação, clique e arraste |
+| `editor/src/CurveGraph.jsx` | o gráfico valor×tempo, amostrando as `CURVES` do runtime |
+| `editor/src/KeyRuler.jsx` | régua de keyframes, alinhada linha a linha com `LaneList` |
+| `editor/src/clipOps.js` | toda edição como função pura sobre o documento — é o que torna o undo uma pilha de valores |
+| `editor/src/useEditorState.js` | documento + histórico, com coalescência de arrastes |
+| `screenshots/` | prints usados neste README |
 | `index.html` + `main.js` | página do motor medido |
 | `artifact.html` | versão publicada do motor medido, tudo num arquivo |
 | `tools/build-artifact.js` | gera `lark-artifact.html` a partir dos módulos |
@@ -324,8 +395,11 @@ puramente horizontal, que a referência nunca mostra.
 
 ## Sobre medir
 
-Dois servidores locais: **8793** serve a referência (arquivos estáticos de `lilguy-fork/public`, que
-dirigem o WASM real — não precisa de build Next.js) e **8794** serve esta pasta.
+Três servidores locais: **8793** serve a referência (arquivos estáticos de `lilguy-fork/public`, que
+dirigem o WASM real — não precisa de build Next.js), **8794** serve esta pasta, e **8795** é o dev
+server do editor. O `playwright.config.js` sobe os três sozinho, então `npm test` funciona num clone
+novo; o do editor só é necessário para o `editor.spec.js`, que se pula com uma mensagem clara quando
+as dependências dele não foram instaladas.
 
 ```sh
 npm install && npx playwright install chromium
@@ -333,6 +407,8 @@ npm run serve:ref &   # 8793
 npm run serve:sim &   # 8794
 npm run baseline      # regrava tools/baseline/states.json
 npm test              # gate de regressão
+
+npx playwright test test/editor.spec.js   # só o editor (17 casos, ~30s)
 ```
 
 Os harnesses ficam em `tools/harness/` e as primitivas de medição em `tools/lib/measure.js`, que é o

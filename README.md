@@ -119,7 +119,7 @@ PlatformIO, from its venv:
 ~/.platformio/penv/bin/pio run -e esp32-s3-touch-128     # build (Waveshare — the ship board)
 ~/.platformio/penv/bin/pio run -e esp32-s3               # build (bare S3 devkit — bench rig)
 ~/.platformio/penv/bin/pio run -e esp32-c3-devkitm-1     # build (legacy C3)
-~/.platformio/penv/bin/pio test -e native                # host unit tests (34 suites, 441 cases)
+~/.platformio/penv/bin/pio test -e native                # host unit tests (34 suites)
 ```
 
 The Lark scene data is generated, not hand-maintained. After touching `anim_data.json` or the
@@ -193,9 +193,24 @@ It now runs on the hardware too, as **Lark Eyes** (id 56). The port is six heade
 
 GFX has no filled-Bézier primitive and no path clipping, and the pupil is clipped by an animated
 lid in every state and punched as a *hole* in 20 of the 36 — hence the own rasteriser. The scene
-data is packed to 14KB by `tools/lark_pack.py` and embedded in the application image rather than
+data is packed to 15.4KB by `tools/lark_pack.py` and embedded in the application image rather than
 LittleFS: that partition is shared with the GIF sets, and `uploadfs` writes a whole directory, so
 loading a GIF set would otherwise delete the eyes and vice versa.
+
+**Editing the animations.** `web-sim/editor/` is a React app that plays the 15 clips through the
+same `lark.js`, with a curve editor, a keyframe ruler, click-to-select on the stage, and per-node
+colour. It exports `anim_data.json` in the shape `tools/lark_pack.py` already reads, so the path to
+the device is export → pack → reflash.
+
+![The clip editor](web-sim/screenshots/editor.png)
+
+```sh
+cd web-sim
+npm run editor:install     # once
+npm run editor             # http://localhost:8795
+```
+
+See [`web-sim/README.md`](web-sim/README.md#o-editor-de-clipes) for what it does and does not edit.
 
 **web-sim stays the reference the port is measured against.** The `test_lark_*` suites assert
 figures the browser actually draws — ink area, eye extents, the gap between the pair — rather than
