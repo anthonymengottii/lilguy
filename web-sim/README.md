@@ -87,6 +87,7 @@ Ou, a partir desta pasta, `npm run editor:install` e `npm run editor`.
 | mover um keyframe | arrastar na régua (tempo) ou no gráfico (tempo **e** valor; shift prende o tempo) |
 | desfazer / refazer | **ctrl+Z** / **ctrl+shift+Z** — um arraste inteiro é um passo só |
 | guiar o olhar | mover o cursor sobre o disco |
+| **fixar** um ângulo de olhar | painel **Olhar** à direita → "controle manual" → arrastar o ponto ou digitar x/y |
 
 ### O editor de curvas
 
@@ -100,6 +101,17 @@ Ele desenha **amostrando as `CURVES` do próprio `lark.js`**, não uma aproxima�
 uma delas: a lane `o` da pupila usa a **curva 0**, que é um *degrau* segurando o valor de origem, não
 uma rampa. A outra é que a curva de um segmento é a do keyframe de onde ele **sai**, não a do
 keyframe aonde chega. Uma lista de números esconde as duas; um gráfico não.
+
+### Olhar manual
+
+O palco guia o olhar pelo mouse: o `Stage` lê `pointermove` sobre o disco e zera o vetor assim que
+o cursor sai — bom para "seguir o mouse", inútil para segurar um ângulo específico enquanto se mexe
+em outra parte da tela. O painel **Olhar**, à direita, resolve isso: uma caixinha "controle manual"
+desliga o mouse do palco (`onLook` vira um no-op) e entrega o vetor a um pad quadrado — arrastável,
+ou dois campos numéricos x/y. O intervalo vai a **±2**, o mesmo `LOOK_CAP` do `lark.js`, não ±1: o
+mouse raramente passa de ~1 na prática, mas clipes como `idle` somam seu próprio deslocamento por
+cima do olhar, e um pad limitado a 1 tornaria alguns ângulos do aparelho impossíveis de reproduzir
+aqui.
 
 ### Seleção
 
@@ -167,7 +179,7 @@ E **importa o `lark.js` daqui**, não uma cópia. Um clipe que toca certo no edi
 página do artifact e, pelo port em C++, no aparelho — um visualizador escrito "parecido com" o
 runtime divergiria dele na primeira mudança, e a divergência seria invisível.
 
-Coberto por `test/editor.spec.js` (18 casos), cujo teste central não é "renderiza" e sim **"uma
+Coberto por `test/editor.spec.js` (19 casos), cujo teste central não é "renderiza" e sim **"uma
 edição chega ao canvas"** — a falha que um screenshot não pega é um editor que responde e não muda
 nada. Rode com `npx playwright test test/editor.spec.js`.
 
@@ -185,6 +197,7 @@ nada. Rode com `npx playwright test test/editor.spec.js`.
 | `editor/src/Stage.jsx` | o palco: desenho, passe de identificação, clique e arraste |
 | `editor/src/CurveGraph.jsx` | o gráfico valor×tempo, amostrando as `CURVES` do runtime |
 | `editor/src/KeyRuler.jsx` | régua de keyframes, alinhada linha a linha com `LaneList` |
+| `editor/src/LookPad.jsx` | controle manual do olhar (±2, o mesmo `LOOK_CAP`) — isola do mouse do palco |
 | `editor/src/clipOps.js` | toda edição como função pura sobre o documento — é o que torna o undo uma pilha de valores |
 | `editor/src/useEditorState.js` | documento + histórico, com coalescência de arrastes |
 | `editor/src/animData.js` | lê o `anim_data.js` versionado — a fonte não pode estar fora do repo |
@@ -417,7 +430,7 @@ npm run serve:sim &   # 8794
 npm run baseline      # regrava tools/baseline/states.json
 npm test              # gate de regressão
 
-npx playwright test test/editor.spec.js   # só o editor (18 casos, ~40s)
+npx playwright test test/editor.spec.js   # só o editor (19 casos, ~1min)
 ```
 
 Os harnesses ficam em `tools/harness/` e as primitivas de medição em `tools/lib/measure.js`, que é o

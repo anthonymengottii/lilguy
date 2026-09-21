@@ -701,3 +701,75 @@ test('the editor imports nothing from outside the repository', () => {
   expect(config, 'the config must not alias anything outside the repo').not.toMatch(/lilguy-fork/);
   expect(config, 'nor reach up past web-sim').not.toMatch(/\.\.\/\.\.\/\.\./);
 });
+
+test('manual look mode dials in a gaze without the mouse, and holds it', async ({ page }) => {
+  // Stage's own pointer handler drives `look` on every pointermove and resets it to [0, 0] the
+  // instant the cursor leaves the canvas — fine for "follow my mouse", useless for holding one
+  // exact angle while working elsewhere in the editor. LookPad exists to bypass that entirely, so
+  // the test that matters is not "typing a number moves the eyes" but "moving the mouse over the
+  // stage afterward does NOT move them back".
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(800);
+
+  const eyeCentroid = () => page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let n = 0, sx = 0, sy = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 24 || d[i + 1] > 24 || d[i + 2] > 24) {
+        const p = i / 4;
+        sx += p % c.width;
+        sy += Math.floor(p / c.width);
+        n++;
+      }
+    }
+    return n ? { x: sx / n, y: sy / n } : null;
+  });
+
+  const centred = await eyeCentroid();
+
+  await page.getByText('controle manual').click();
+  const xInput = page.locator('.lookpad-fields input').first();
+  const yInput = page.locator('.lookpad-fields input').nth(1);
+  await xInput.fill('1.8');
+  await xInput.blur();
+  await page.waitForTimeout(300);
+
+  const dialedIn = await eyeCentroid();
+  expect(dialedIn.x, 'typing an X value should move the drawing').toBeGreaterThan(centred.x + 10);
+
+  // The part that actually matters: crossing the stage with the mouse must not undo it.
+  const stageCanvas = page.locator('.bezel canvas');
+  const box = await stageCanvas.boundingBox();
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.move(box.x + box.width - 5, box.y + box.height - 5);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(200);
+
+  expect(await xInput.inputValue(), 'the field must not have been overwritten').toBe('1.8');
+  const afterMouse = await eyeCentroid();
+  expect(afterMouse.x, 'the drawing must not have snapped back').toBeGreaterThan(centred.x + 10);
+
+  // Dragging the pad's own dot also works, and lands near the corner it was dropped on.
+  const square = page.locator('.lookpad-square');
+  const sbox = await square.boundingBox();
+  await page.mouse.move(sbox.x + sbox.width * 0.05, sbox.y + sbox.height * 0.05);
+  await page.mouse.down();
+  await page.mouse.move(sbox.x + sbox.width * 0.05, sbox.y + sbox.height * 0.05);
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  const xAfterDrag = parseFloat(await xInput.inputValue());
+  const yAfterDrag = parseFloat(await yInput.inputValue());
+  expect(xAfterDrag, 'dragging near the top-left corner sets a negative x').toBeLessThan(-1);
+  expect(yAfterDrag, 'and a negative y').toBeLessThan(-1);
+
+  // Turning manual mode off hands control back to the mouse.
+  await page.getByText('controle manual').click();
+  await expect(page.locator('.lookpad-square')).toHaveCount(0);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(200);
+  const backToMouse = await eyeCentroid();
+  // Centred pointer over the middle of the disc: the gaze should read close to neutral again,
+  // not still pinned at the corner the pad was left on.
+  expect(Math.abs(backToMouse.x - centred.x), 'mouse control should resume').toBeLessThan(30);
+});

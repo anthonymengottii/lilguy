@@ -6,6 +6,7 @@ import KeyRuler from './KeyRuler';
 import Inspector from './Inspector';
 import CurveGraph from './CurveGraph';
 import ColourPanel from './ColourPanel';
+import LookPad from './LookPad';
 import { useEditorState } from './useEditorState';
 import * as C from './clipOps';
 import ANIM_DATA from './animData';
@@ -30,6 +31,9 @@ import ANIM_DATA from './animData';
 // exported.
 
 const PLAY_RATE = 1;
+// A stable no-op for Stage's onLook when manual mode owns the gaze — Stage still calls it on every
+// pointermove, so it must exist and do nothing, rather than fight LookPad for the same state.
+const noop = () => {};
 
 export default function App() {
   const editor = useEditorState(ANIM_DATA);
@@ -44,6 +48,11 @@ export default function App() {
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [look, setLook] = useState([0, 0]);
+  // Manual mode hands the gaze to LookPad instead of the mouse over the stage. Stage's own pointer
+  // handler drives `look` on every `pointermove` and resets it the moment the cursor leaves the
+  // canvas — fine for "follow my mouse", useless for "hold this exact angle while I look away to
+  // edit a curve". `onLook` is only wired to Stage when this is off.
+  const [manualLook, setManualLook] = useState(false);
   const [background, setBackground] = useState('#000000');
   const [message, setMessage] = useState('');
 
@@ -388,7 +397,7 @@ export default function App() {
               timeMs={timeMs}
               background={background}
               look={look}
-              onLook={setLook}
+              onLook={manualLook ? noop : setLook}
               selected={newObj}
               onPick={(n) => n && setNewObj(n)}
               onMove={moveNode}
@@ -425,6 +434,26 @@ export default function App() {
               <div className="group-title">Estado</div>
               <div className="prop"><span>nome</span><span>{stateId}</span></div>
               <div className="prop"><span>objetos</span><span>{nodeTree.length}</span></div>
+            </div>
+
+            {/* A direct control for the gaze angle, so a pose can be dialled in and held without
+                keeping the mouse over the disc — Stage otherwise drives `look` from pointermove and
+                zeroes it the instant the cursor leaves the canvas. */}
+            <div className="group">
+              <div className="group-title">Olhar</div>
+              <label className="field check">
+                <input
+                  type="checkbox"
+                  checked={manualLook}
+                  onChange={(e) => setManualLook(e.target.checked)}
+                />
+                <span>controle manual</span>
+              </label>
+              {manualLook ? (
+                <LookPad look={look} onChange={setLook} />
+              ) : (
+                <p className="hint small">Mova o cursor sobre o disco para guiar o olhar.</p>
+              )}
             </div>
 
             {/* Colour belongs to the node inside the STATE, not to the clip — which is why it sits
