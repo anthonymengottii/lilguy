@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { LarkRuntime, tracePath } from '@lark';
+import { LarkRuntime } from '@lark';
 
 // The preview, drawn by the REAL runtime.
 //
@@ -126,15 +126,23 @@ function descendantsOf(objs, name, out = []) {
   return out;
 }
 
-// The on-screen box a group occupies RIGHT NOW.
+// The on-screen box a node occupies RIGHT NOW — itself, plus everything it contains if it is a
+// group.
 //
-// Read from the id pass rather than from the group's own `b` or from its children's raw paths.
-// Both of those describe the rest pose, while drawNode applies the look, the turn and the running
-// clip's channels on the way to the screen — so a box taken from the data sits still while the eyes
-// move, which is worse than no box at all.
-function groupBox(LarkRuntimeCtor, data, stateId, clipName, timeMs, look, group) {
+// Read from the id pass rather than from stored geometry or from tracing a raw path in the base
+// transform. Both of those describe the REST pose, while drawNode applies the look, the turn, the
+// pair's convergence and the running clip's channels through a chain of ctx.translate/scale/rotate
+// calls accumulated down the scene tree — reproducing that by hand means keeping a second copy of
+// drawNode's transform logic in sync with the first, and it drifted the moment it was tried: a
+// selection ring drawn that way sat at the REST position while the eye it was meant to outline slid
+// away under a manual look, ending up nowhere near the actual drawing.
+//
+// This sidesteps the whole problem by reading pixels: the id pass already ran the real draw, so
+// asking "where did node X's colour end up" is exact by construction and needs no transform code
+// of its own, for a leaf or for a group.
+function onScreenBox(LarkRuntimeCtor, data, stateId, clipName, timeMs, look, node) {
   const { ctx, names, rt } = idPass(LarkRuntimeCtor, data, stateId, clipName, timeMs, look);
-  const kids = new Set(descendantsOf(rt.objs, group));
+  const kids = new Set([node, ...descendantsOf(rt.objs, node)]);
   const wanted = new Set();
   names.forEach((n, i) => { if (kids.has(n)) wanted.add(i); });
   if (!wanted.size) return null;
@@ -219,44 +227,19 @@ export default function Stage({
         ctx.restore();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        // Mark the selection.
-        //
-        // A LEAF is outlined by its own path, traced in the same transform the scene just used, so
-        // the ring lands exactly on the node including whatever the gaze and the clip did to it.
-        //
-        // A GROUP has no path — `p` is [] on all three — so it gets a bounding box instead, drawn
-        // around everything it contains. That is also what a group IS here: a handle for moving
-        // several nodes at once, which is how `rot` turns the pair and `rot3d_2` turns one eye.
+        // Mark the selection: a box around the node (and, if it is a group, everything inside it),
+        // read from the id pass so it always lands where the node actually ended up on screen —
+        // see onScreenBox for why that is a pixel read rather than a second transform pass.
         const sel = selectedRef.current;
         const node = sel && rt.objs[sel];
-        if (node && node.type !== 'group') {
-          const p = rt.channelsFor(sel, now).p || node.p;
-          if (p && p.length) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(RADIUS, RADIUS, RADIUS, 0, Math.PI * 2);
-            ctx.clip();
-            ctx.translate(RADIUS, RADIUS);
-            ctx.scale(SCENE_SCALE, SCENE_SCALE);
-            ctx.translate(-SCENE_CX, -SCENE_CY);
-            ctx.beginPath();
-            tracePath(ctx, p);
-            ctx.strokeStyle = '#ffffff';
-            // Scaled back up, so the ring is a constant 2px on screen rather than 2 authoring units.
-            ctx.lineWidth = 2 / SCENE_SCALE;
-            ctx.setLineDash([6 / SCENE_SCALE, 4 / SCENE_SCALE]);
-            ctx.stroke();
-            ctx.restore();
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-          }
-        } else if (node) {
+        if (node) {
           // The box costs a whole extra render of the scene, so it is computed when something that
           // could move it changes rather than every frame.
           const key = `${sel}|${stateId}|${clipName}|${Math.round(timeMs)}|${look[0].toFixed(3)},${look[1].toFixed(3)}`;
           if (boxRef.current.key !== key) {
             boxRef.current = {
               key,
-              box: groupBox(LarkRuntime, data, stateId, clipName, timeMs, look, sel),
+              box: onScreenBox(LarkRuntime, data, stateId, clipName, timeMs, look, sel),
             };
           }
           const b = boxRef.current.box;

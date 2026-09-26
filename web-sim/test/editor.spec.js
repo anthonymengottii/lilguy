@@ -773,3 +773,62 @@ test('manual look mode dials in a gaze without the mouse, and holds it', async (
   // not still pinned at the corner the pad was left on.
   expect(Math.abs(backToMouse.x - centred.x), 'mouse control should resume').toBeLessThan(30);
 });
+
+test('the selection box follows a node under a manual look, not just at rest', async ({ page }) => {
+  // The bug this exists for: the selection ring was traced from the node's RAW path in the base
+  // authoring-space transform, while the actual eye is drawn through drawNode's own chain of
+  // translate/scale/rotate for the look, the turn and the pair's convergence. At look=[0,0] those
+  // two agree closely enough to look right; away from centre they diverge, and the ring was seen
+  // floating over empty background while the real eye sat elsewhere on the disc entirely.
+  //
+  // Fixed by reading the box from the id pass (the same mechanism click-to-select uses) rather than
+  // recomputing the transform by hand, so this checks that the drawn selection box actually
+  // overlaps the node's own colour on screen, under a gaze extreme enough to expose the old bug.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(800);
+
+  // eye_l is selected by default; drive the look hard down-left, which is where the divergence was
+  // photographed: the box sat near the panel centre while the eye migrated into the top-left corner.
+  await page.getByText('controle manual').click();
+  const xInput = page.locator('.lookpad-fields input').first();
+  const yInput = page.locator('.lookpad-fields input').nth(1);
+  await xInput.fill('-2');
+  await xInput.blur();
+  await yInput.fill('-2');
+  await yInput.blur();
+  await page.waitForTimeout(300);
+
+  const overlap = await page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const isWhiteDash = (i) => d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200 && d[i + 3] > 0;
+    const isEyeInk = (i) => d[i + 1] > 120 && d[i] < 160 && !isWhiteDash(i);   // the mint eye colour
+
+    // The selection box outline: its own bounding rectangle in pixel space.
+    let bx0 = c.width, by0 = c.height, bx1 = -1, by1 = -1;
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) {
+        const i = (y * c.width + x) * 4;
+        if (!isWhiteDash(i)) continue;
+        if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
+        if (y < by0) by0 = y; if (y > by1) by1 = y;
+      }
+    }
+    if (bx1 < 0) return { hasBox: false };
+
+    // Does any eye-coloured ink fall inside that rectangle? If the box is floating over empty
+    // background while the eye sits elsewhere, this is false.
+    let inkInsideBox = 0;
+    for (let y = by0; y <= by1; y++) {
+      for (let x = bx0; x <= bx1; x++) {
+        const i = (y * c.width + x) * 4;
+        if (isEyeInk(i)) inkInsideBox++;
+      }
+    }
+    return { hasBox: true, inkInsideBox };
+  });
+
+  expect(overlap.hasBox, 'a selection box should be drawn').toBe(true);
+  expect(overlap.inkInsideBox, 'the box must overlap the eye it outlines, not float over background')
+    .toBeGreaterThan(20);
+});
