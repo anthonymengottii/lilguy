@@ -78,6 +78,7 @@ Ou, a partir desta pasta, `npm run editor:install` e `npm run editor`.
 |---|---|
 | trocar de estado / clipe | listas à esquerda |
 | tocar, pausar | botão ▶ ou **espaço** |
+| repetir em prévia | botão 🔁 ao lado do play — não grava `repeat` no clipe exportado |
 | percorrer o tempo | arrastar o playhead, clicar na régua, ou **←/→** (10ms; 100ms com shift) |
 | selecionar um objeto | clicar nele no palco ou na árvore |
 | selecionar o **grupo** | clicar na árvore, ou **alt+clique** no palco (sobe um nível por vez) |

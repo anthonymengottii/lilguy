@@ -832,3 +832,49 @@ test('the selection box follows a node under a manual look, not just at rest', a
   expect(overlap.inkInsideBox, 'the box must overlap the eye it outlines, not float over background')
     .toBeGreaterThan(20);
 });
+
+test('loop preview replays a one-shot clip without touching its stored repeat flag', async ({ page }) => {
+  // Most Lark clips (blink, blink2...) are one-shots by design in the real behaviour rules, and
+  // reviewing one in the editor meant pressing play over and over. Loop preview keeps replaying the
+  // CURRENT clip regardless of its own `repeat` field, but must never leak into the exported
+  // document -- it is a review aid, not an edit.
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForTimeout(800);
+  await pickClip(page, 'blink');
+  await page.waitForTimeout(300);
+
+  const time = () => page.locator('.transport .time').textContent();
+
+  // Without the loop, play runs once and parks on the end.
+  await page.locator('button.play').click();
+  await page.waitForTimeout(1200);
+  expect((await time()).trim()).toBe('0.78s / 0.78s');
+
+  // With it on, playback wraps well past the clip's own duration and keeps running.
+  const loopBtn = page.locator('button.icon', { hasText: '🔁' });
+  await loopBtn.click();
+  await expect(loopBtn, 'the toggle should show as active').toHaveClass(/active/);
+
+  await scrubber(page).fill('0');
+  await page.locator('button.play').click();
+  await page.waitForTimeout(1900);   // more than double blink's 783ms duration
+
+  const elapsed = parseFloat((await time()).trim());
+  expect(elapsed, 'a looping preview must not have parked on the end').toBeLessThan(0.78);
+  await expect(page.locator('button.play'), 'still playing, not stopped').toHaveText('⏸');
+
+  // The part that matters: none of this may show up in the exported document.
+  const exported = await page.evaluate(async () => {
+    let captured = null;
+    const realCreate = URL.createObjectURL;
+    URL.createObjectURL = (blob) => { captured = blob; return 'blob:stub'; };
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function noop() {};
+    document.querySelector('.titlebar button:last-of-type').click();
+    HTMLAnchorElement.prototype.click = realClick;
+    URL.createObjectURL = realCreate;
+    return captured ? JSON.parse(await captured.text()) : null;
+  });
+  expect(exported.animations.blink.repeat, 'loop preview must not write to the document')
+    .toBe('n');
+});

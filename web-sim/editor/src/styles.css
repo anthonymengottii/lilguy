@@ -210,6 +210,7 @@ button:hover:not(:disabled), .filebtn:hover { border-color: var(--muted); backgr
 button:disabled { opacity: .4; cursor: default; }
 button.danger { color: var(--danger); }
 button.icon { padding: .1rem .4rem; line-height: 1.2; }
+button.icon.active { background: var(--accent-dim); border-color: var(--accent); }
 .filebtn { display: inline-block; }
 .filebtn input { display: none; }
 

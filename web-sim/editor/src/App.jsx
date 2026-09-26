@@ -47,6 +47,12 @@ export default function App() {
   const [selection, setSelection] = useState(null);
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(false);
+  // Preview-only looping: keeps replaying the current clip regardless of its OWN `repeat` field.
+  // Most Lark clips (blink, blink2...) are one-shots by design -- they play once inside the real
+  // behaviour rules -- but reviewing one means pressing play over and over. This does not touch
+  // `clip.repeat`, so it never leaks into the exported document; see the playback effect below for
+  // where it forks from the clip's real loop flag.
+  const [loopPreview, setLoopPreview] = useState(false);
   const [look, setLook] = useState([0, 0]);
   // Manual mode hands the gaze to LookPad instead of the mouse over the stage. Stage's own pointer
   // handler drives `look` on every `pointermove` and resets it the moment the cursor leaves the
@@ -69,7 +75,10 @@ export default function App() {
     const tick = () => {
       const { startWall, startMs } = playRef.current;
       const elapsed = (performance.now() - startWall) * PLAY_RATE + startMs;
-      if (clip?.repeat === 'l') {
+      // The clip's OWN repeat loops forever, same as always. loopPreview does the same wrap but
+      // without touching `clip.repeat` -- it is a review aid, not part of the animation, so it must
+      // never show up in the exported document.
+      if (clip?.repeat === 'l' || loopPreview) {
         setTimeMs(elapsed % duration);
       } else if (elapsed >= duration) {
         setTimeMs(duration);
@@ -85,7 +94,7 @@ export default function App() {
     // timeMs is intentionally NOT a dependency: it changes every frame while playing, and including
     // it would restart the loop on each tick and make playback crawl.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, clipName, duration, clip?.repeat]);
+  }, [playing, clipName, duration, clip?.repeat, loopPreview]);
 
   const scrub = useCallback((ms) => {
     setPlaying(false);
@@ -406,6 +415,14 @@ export default function App() {
           <div className="transport">
             <button type="button" className="play" onClick={togglePlay}>
               {playing ? '⏸' : '▶'}
+            </button>
+            <button
+              type="button"
+              className={`icon${loopPreview ? ' active' : ''}`}
+              title="repetir continuamente (só na prévia — não altera o clipe exportado)"
+              onClick={() => setLoopPreview((v) => !v)}
+            >
+              🔁
             </button>
             <input
               type="range"
